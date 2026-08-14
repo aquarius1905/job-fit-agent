@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}判定 | job-fit-agent{% endblock %}
+{% block content %}
+
+{% if not has_skill_sheet %}
+  <div class="notice">
+    まだスキルシートが登録されていません。先に <a href="/skill-sheet">スキルシート登録</a> を行ってください。
+  </div>
+{% endif %}
+
+<section class="card">
+  <h1>案件を判定する</h1>
+  <form method="post" action="/evaluate" enctype="multipart/form-data">
+    <label class="field">
+      <span>案件タイトル（任意）</span>
+      <input type="text" name="job_title" value="{{ job_title or '' }}" placeholder="例: ○○社 バックエンドエンジニア">
+    </label>
+
+    <label class="field">
+      <span>求人票テキスト</span>
+      <textarea name="job_posting_text" rows="12" placeholder="求人票の本文をここに貼り付け">{{ job_posting_text or '' }}</textarea>
+    </label>
+
+    <label class="field">
+      <span>またはファイルから読み込み（.txt / .docx / .xlsx）</span>
+      <input type="file" name="job_posting_file" accept=".txt,.md,.docx,.xlsx">
+    </label>
+
+    <button type="submit" {% if not has_skill_sheet %}disabled{% endif %}>判定する</button>
+  </form>
+</section>
+
+{% if error %}
+  <div class="notice notice-error">{{ error }}</div>
+{% endif %}
+
+{% if result %}
+<section class="card result">
+  <h2>判定結果</h2>
+
+  <div class="score-row">
+    <div class="score-badge">{{ result.fit_score }}<span>/100</span></div>
+    <div class="fit-label">{{ result.fit_label }}</div>
+  </div>
+
+  <h3>必須・歓迎スキル充足チェック</h3>
+  <table class="skill-table">
+    <thead>
+      <tr><th>区分</th><th>スキル・条件</th><th>判定</th><th>理由</th></tr>
+    </thead>
+    <tbody>
+      {% for s in result.required_skills %}
+      <tr>
+        <td>{{ "必須" if s.required else "歓迎" }}</td>
+        <td>{{ s.skill }}</td>
+        <td class="{{ 'ok' if s.meets else 'ng' }}">{{ "○" if s.meets else "×" }}</td>
+        <td>{{ s.reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3>懸念点</h3>
+  {% if result.concerns %}
+  <ul class="concerns">
+    {% for c in result.concerns %}
+    <li>{{ c }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">特になし</p>
+  {% endif %}
+
+  <h3>応募文</h3>
+  <textarea id="application-letter" rows="10" readonly>{{ result.application_letter }}</textarea>
+  <button type="button" onclick="copyLetter()">応募文をコピー</button>
+</section>
+{% endif %}
+
+<script>
+function copyLetter() {
+  const el = document.getElementById('application-letter');
+  el.select();
+  navigator.clipboard.writeText(el.value);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}スキルシート | job-fit-agent{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h1>スキルシート登録</h1>
+  <p class="muted">Excel(.xlsx) / Word(.docx) をアップロードするとテキストを自動抽出します。内容はこのマシンの data/ フォルダにのみ保存され、外部には送信されません（判定時のみClaude APIに送られます）。</p>
+
+  {% if error %}
+  <div class="notice notice-error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/skill-sheet" enctype="multipart/form-data">
+    <label class="field">
+      <span>ファイルから登録</span>
+      <input type="file" name="file" accept=".xlsx,.docx,.txt,.md">
+    </label>
+
+    <label class="field">
+      <span>または直接編集・貼り付け</span>
+      <textarea name="manual_text" rows="16" placeholder="経歴・スキルをテキストで入力">{{ skill_sheet_text or '' }}</textarea>
+    </label>
+
+    <button type="submit">保存する</button>
+  </form>
+</section>
+
+{% endblock %}

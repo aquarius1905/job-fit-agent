@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}履歴 | job-fit-agent{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h1>判定履歴</h1>
+
+  {% if not entries %}
+  <p class="muted">まだ判定履歴がありません。</p>
+  {% endif %}
+
+  {% for e in entries %}
+  <details class="history-item">
+    <summary>
+      <span class="score-badge small">{{ e.evaluation.fit_score }}</span>
+      <span class="hist-title">{{ e.job_title }}</span>
+      <span class="hist-date">{{ e.timestamp[:16].replace("T", " ") }}</span>
+    </summary>
+    <div class="history-body">
+      <p><strong>総合判定:</strong> {{ e.evaluation.fit_label }}</p>
+      <table class="skill-table">
+        <thead><tr><th>区分</th><th>スキル・条件</th><th>判定</th><th>理由</th></tr></thead>
+        <tbody>
+        {% for s in e.evaluation.required_skills %}
+          <tr>
+            <td>{{ "必須" if s.required else "歓迎" }}</td>
+            <td>{{ s.skill }}</td>
+            <td class="{{ 'ok' if s.meets else 'ng' }}">{{ "○" if s.meets else "×" }}</td>
+            <td>{{ s.reason }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p><strong>懸念点:</strong></p>
+      <ul class="concerns">
+        {% for c in e.evaluation.concerns %}<li>{{ c }}</li>{% endfor %}
+      </ul>
+      <p><strong>応募文:</strong></p>
+      <textarea rows="8" readonly>{{ e.evaluation.application_letter }}</textarea>
+    </div>
+  </details>
+  {% endfor %}
+</section>
+
+{% endblock %}
