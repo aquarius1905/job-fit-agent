@@ -10,7 +10,7 @@
 
 <section class="card">
   <h1>案件を判定する</h1>
-  <form method="post" action="/evaluate" enctype="multipart/form-data">
+  <form id="evaluate-form" method="post" action="/evaluate" enctype="multipart/form-data">
     <label class="field">
       <span>案件タイトル（任意）</span>
       <input type="text" name="job_title" value="{{ job_title or '' }}" placeholder="例: ○○社 バックエンドエンジニア">
@@ -29,6 +29,13 @@
     <button type="submit" {% if not has_skill_sheet %}disabled{% endif %}>判定する</button>
   </form>
 </section>
+
+<div id="loading-overlay" class="loading-overlay" hidden>
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <p>判定中です。しばらくお待ちください…</p>
+  </div>
+</div>
 
 {% if error %}
   <div class="notice notice-error">{{ error }}</div>
@@ -83,5 +90,12 @@ function copyLetter() {
   el.select();
   navigator.clipboard.writeText(el.value);
 }
+
+document.getElementById('evaluate-form').addEventListener('submit', function (e) {
+  if (!e.target.checkValidity()) return;
+  document.getElementById('loading-overlay').hidden = false;
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+});
 </script>
 {% endblock %}
