@@ -166,13 +166,16 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .history-body { margin-top: 14px; }
 
 .loading-overlay {
+  display: none;
   position: fixed;
   inset: 0;
   background: rgba(15, 17, 21, 0.55);
-  display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
+}
+.loading-overlay:not([hidden]) {
+  display: flex;
 }
 .loading-box {
   background: var(--card-bg);

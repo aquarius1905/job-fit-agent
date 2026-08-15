@@ -7,6 +7,7 @@ from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from app import llm, parsing, storage
 
@@ -85,7 +86,7 @@ async def evaluate(
         error = "求人票のテキストを入力するかファイルを選択してください。"
     else:
         try:
-            result = llm.evaluate(skill_sheet, posting_text)
+            result = await run_in_threadpool(llm.evaluate, skill_sheet, posting_text)
             storage.append_history(job_title or "(タイトル未入力)", posting_text, result)
         except Exception as e:  # noqa: BLE001
             error = str(e)
