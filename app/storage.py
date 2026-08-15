@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SKILL_SHEET_PATH = DATA_DIR / "skill_sheet.txt"
+WORK_STYLE_PATH = DATA_DIR / "work_style.txt"
 HISTORY_PATH = DATA_DIR / "history.jsonl"
 
 
@@ -21,10 +22,21 @@ def load_skill_sheet() -> str | None:
     return SKILL_SHEET_PATH.read_text(encoding="utf-8")
 
 
+def save_work_style(text: str) -> None:
+    DATA_DIR.mkdir(exist_ok=True)
+    WORK_STYLE_PATH.write_text(text, encoding="utf-8")
+
+
+def load_work_style() -> str | None:
+    if not WORK_STYLE_PATH.exists():
+        return None
+    return WORK_STYLE_PATH.read_text(encoding="utf-8")
+
+
 def append_history(job_title: str, job_posting_text: str, evaluation: dict) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "job_title": job_title,
         "job_posting_text": job_posting_text,
         "evaluation": evaluation,

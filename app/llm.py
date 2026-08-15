@@ -44,6 +44,32 @@ _EVALUATION_TOOL = {
                     "required": ["skill", "required", "meets", "reason"],
                 },
             },
+            "work_style_fit": {
+                "type": "array",
+                "description": "働き方の希望条件ごとの、求人内容との合致判定",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "item": {
+                            "type": "string",
+                            "description": "働き方の項目名（例: フルリモート、出社あり、会議多め等）",
+                        },
+                        "preference": {
+                            "type": "string",
+                            "description": "応募者側の希望内容（例: ◯希望 / ×希望しない / どちらでも可）",
+                        },
+                        "matches": {
+                            "type": "boolean",
+                            "description": "求人票に書かれた条件が応募者の希望に合っているか",
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "判定理由の短い説明。求人票に記載がなければその旨を書く",
+                        },
+                    },
+                    "required": ["item", "preference", "matches", "reason"],
+                },
+            },
             "concerns": {
                 "type": "array",
                 "description": "応募前に確認・注意すべき懸念点",
@@ -58,6 +84,7 @@ _EVALUATION_TOOL = {
             "fit_score",
             "fit_label",
             "required_skills",
+            "work_style_fit",
             "concerns",
             "application_letter",
         ],
@@ -66,18 +93,20 @@ _EVALUATION_TOOL = {
 
 _SYSTEM_PROMPT = """\
 あなたはITフリーランス/エンジニアの案件マッチングを支援するエージェントです。
-渡される「スキルシート」（応募者の経歴・スキル情報）と「求人票」（案件情報）を読み、
-求人票に書かれた必須・歓迎スキルや条件ごとに、スキルシートの内容から満たしているかを厳密に判定してください。
+渡される「スキルシート」（応募者の経歴・スキル情報）「働き方の希望条件」（応募者が案件に求める働き方）と
+「求人票」（案件情報）を読み、技術面・働き方面の両方から適合度を厳密に判定してください。
 
 判定方針:
 - スキルシートに明記されていない事項は「不明」として満たしていない(meets=false)扱いにし、reasonに「スキルシートに記載なし」等と明記する。憶測で満たしていると判定しない。
 - 必須(MUST)条件と歓迎(WANT)条件は求人票の表現から判別し、requiredフィールドに反映する。
-- 懸念点(concerns)には、経験年数不足・スキルのブランク・稼働条件（リモート可否、稼働率、単価、就業場所など）のミスマッチが疑われる点を具体的に挙げる。
+- 働き方の希望条件は、項目ごとに求人票の記載内容と照らし合わせてmatchesを判定する。求人票に該当する記載がなければreasonに「求人票に記載なし」と明記し、matchesはfalseにする。「どちらでも可」など希望に幅がある項目は、求人票がその範囲に収まっていればmatchesをtrueにする。
+- 懸念点(concerns)には、経験年数不足・スキルのブランク・稼働条件（単価等）のミスマッチに加え、働き方の希望条件との重大な不一致（例: フルリモート希望なのに出社必須）があれば具体的に挙げる。
+- 総合適合度(fit_score)は技術面のスキル充足だけでなく、働き方の希望条件との合致度も加味して判定する。働き方の希望条件で重大な不一致（必須級の希望に反する条件）がある場合は、技術面が満たされていてもスコアを大きく下げること。
 - 応募文(application_letter)は、スキルシートの中から本案件に関連が強い経験を選んで簡潔にアピールし、丁寧だが定型文っぽくない日本語で書く。誇張や虚偽の経験を書かない。
 """
 
 
-def evaluate(skill_sheet_text: str, job_posting_text: str) -> dict:
+def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str) -> dict:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError(
@@ -89,6 +118,8 @@ def evaluate(skill_sheet_text: str, job_posting_text: str) -> dict:
     user_content = (
         "## スキルシート\n"
         f"{skill_sheet_text}\n\n"
+        "## 働き方の希望条件\n"
+        f"{work_style_text or '(未設定)'}\n\n"
         "## 求人票\n"
         f"{job_posting_text}\n\n"
         "上記を比較し、submit_evaluation ツールで評価結果を提出してください。"

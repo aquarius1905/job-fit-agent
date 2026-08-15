@@ -33,7 +33,12 @@ def index(request: Request):
 def skill_sheet_form(request: Request):
     return templates.TemplateResponse(
         "skill_sheet.html",
-        {"request": request, "skill_sheet_text": storage.load_skill_sheet(), "error": None},
+        {
+            "request": request,
+            "skill_sheet_text": storage.load_skill_sheet(),
+            "work_style_text": storage.load_work_style(),
+            "error": None,
+        },
     )
 
 
@@ -53,6 +58,7 @@ async def skill_sheet_upload(
                 {
                     "request": request,
                     "skill_sheet_text": storage.load_skill_sheet(),
+                    "work_style_text": storage.load_work_style(),
                     "error": str(e),
                 },
                 status_code=400,
@@ -61,6 +67,12 @@ async def skill_sheet_upload(
         text = manual_text
 
     storage.save_skill_sheet(text)
+    return RedirectResponse(url="/skill-sheet", status_code=303)
+
+
+@app.post("/work-style", response_class=HTMLResponse)
+async def work_style_upload(manual_text: str = Form("")):
+    storage.save_work_style(manual_text)
     return RedirectResponse(url="/skill-sheet", status_code=303)
 
 
@@ -74,6 +86,7 @@ async def evaluate(
     skill_sheet = storage.load_skill_sheet()
     if not skill_sheet:
         return RedirectResponse(url="/skill-sheet", status_code=303)
+    work_style = storage.load_work_style() or ""
 
     posting_text = job_posting_text
     if job_posting_file is not None and job_posting_file.filename:
@@ -86,7 +99,7 @@ async def evaluate(
         error = "求人票のテキストを入力するかファイルを選択してください。"
     else:
         try:
-            result = await run_in_threadpool(llm.evaluate, skill_sheet, posting_text)
+            result = await run_in_threadpool(llm.evaluate, skill_sheet, work_style, posting_text)
             storage.append_history(job_title or "(タイトル未入力)", posting_text, result)
         except Exception as e:  # noqa: BLE001
             error = str(e)

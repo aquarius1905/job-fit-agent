@@ -31,6 +31,22 @@
         {% endfor %}
         </tbody>
       </table>
+      {% if e.evaluation.work_style_fit %}
+      <p><strong>働き方の適合度:</strong></p>
+      <table class="skill-table">
+        <thead><tr><th>項目</th><th>希望</th><th>判定</th><th>理由</th></tr></thead>
+        <tbody>
+        {% for w in e.evaluation.work_style_fit %}
+          <tr>
+            <td>{{ w.item }}</td>
+            <td>{{ w.preference }}</td>
+            <td class="{{ 'ok' if w.matches else 'ng' }}">{{ "○" if w.matches else "×" }}</td>
+            <td>{{ w.reason }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
       <p><strong>懸念点:</strong></p>
       <ul class="concerns">
         {% for c in e.evaluation.concerns %}<li>{{ c }}</li>{% endfor %}

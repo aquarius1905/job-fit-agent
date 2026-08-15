@@ -25,4 +25,18 @@
   </form>
 </section>
 
+<section class="card">
+  <h1>働き方の希望条件</h1>
+  <p class="muted">案件判定時に、技術スキルだけでなく働き方の希望条件との合致度も評価に加味されます。項目名: 希望内容（◯希望 / ×希望しない / どちらでも可 など）の形式で自由に記入してください。</p>
+
+  <form method="post" action="/work-style">
+    <label class="field">
+      <span>働き方の希望条件</span>
+      <textarea name="manual_text" rows="10" placeholder="フルリモート: ◯&#10;出社あり: ×&#10;貸与PC: どちらでも可能&#10;実装中心: ◯&#10;リーダー/PMポジション: ×&#10;会議多め: ×&#10;新しい技術に触れられる: ◯">{{ work_style_text or '' }}</textarea>
+    </label>
+
+    <button type="submit">保存する</button>
+  </form>
+</section>
+
 {% endblock %}
