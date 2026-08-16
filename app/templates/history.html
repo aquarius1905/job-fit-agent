@@ -14,7 +14,7 @@
     <summary>
       <span class="score-badge small">{{ e.evaluation.fit_score }}</span>
       <span class="hist-title">{{ e.job_title }}</span>
-      <span class="hist-date">{{ e.timestamp[:16].replace("T", " ") }}</span>
+      <span class="hist-date">{{ e.timestamp | jst }}</span>
     </summary>
     <div class="history-body">
       <p><strong>総合判定:</strong> {{ e.evaluation.fit_label }}</p>

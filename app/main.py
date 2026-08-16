@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, UploadFile
@@ -14,10 +16,19 @@ from app import llm, parsing, storage
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
+JST = ZoneInfo("Asia/Tokyo")
 
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+def format_jst(iso_timestamp: str) -> str:
+    dt = datetime.fromisoformat(iso_timestamp).astimezone(JST)
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+templates.env.filters["jst"] = format_jst
 
 
 @app.get("/", response_class=HTMLResponse)
