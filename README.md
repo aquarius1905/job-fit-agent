@@ -18,17 +18,10 @@
 
 _(ここにアプリのスクリーンショットを追加予定)_
 
-## 技術的な工夫
-
-- **構造化出力でLLMの判定をUIにそのまま流し込む** — Claude APIのtool useを強制（`tool_choice`）し、スコア・スキル充足表・懸念点・応募文をJSON Schemaで固定したフォーマットで受け取る。プロンプトでJSONを頼んで正規表現でパースする、という壊れやすい方式を避けている
-- **「不明」を「満たしている」と誤判定しない設計** — スキルシートに書かれていない事項は、システムプロンプトで明示的に「不明→満たしていない扱い」とし、Claudeが親切心で好意的に憶測判定しないようにしている
-- **非同期ルート内のブロッキング呼び出しをスレッドプールに逃がす** — FastAPIの`async def`ルートから同期的なAPI呼び出しを直接叩くとイベントループ全体が詰まるため、`run_in_threadpool`で退避している
-- **保存はUTC、表示はJST** — タイムスタンプは内部的にUTCで保存し、表示時にのみJinjaフィルターで`Asia/Tokyo`に変換する一般的なパターンを踏襲
-
 ## 技術スタック
 
 - Python 3.13 / FastAPI / Jinja2（サーバーサイドレンダリング、フレームワークレスなフロント）
-- Anthropic API（Claude Sonnet 5、tool use による構造化出力）
+- Anthropic API（Claude Sonnet 5）。判定結果はプロンプトでJSONを頼んで正規表現でパースするような壊れやすい方式ではなく、tool useを強制（`tool_choice`）してJSON Schema通りの構造化データとして受け取っている
 - openpyxl / python-docx（Excel・Wordのスキルシートからのテキスト抽出）
 - ruff（lint）
 
