@@ -17,7 +17,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 JST = ZoneInfo("Asia/Tokyo")
-RATE_OPTIONS = list(range(30, 151, 10))
+RATE_OPTIONS = list(range(1000, 10001, 500))
 REMOTE_OPTIONS = ["フルリモート", "一部リモート", "常駐"]
 
 app = FastAPI(title="job-fit-agent")

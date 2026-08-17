@@ -117,9 +117,9 @@ def compose_work_style_text(work_style: dict) -> str:
     rate_min = work_style.get("rate_min")
     rate_max = work_style.get("rate_max")
     if rate_min or rate_max:
-        min_str = f"{rate_min}万円" if rate_min else "下限指定なし"
-        max_str = f"{rate_max}万円" if rate_max else "上限指定なし"
-        lines.append(f"希望単価: {min_str} 〜 {max_str}")
+        min_str = f"{rate_min}円/時" if rate_min else "下限指定なし"
+        max_str = f"{rate_max}円/時" if rate_max else "上限指定なし"
+        lines.append(f"希望単価（時給）: {min_str} 〜 {max_str}")
 
     if "leader_ok" in work_style:
         lines.append(f"リーダーポジション: {'OK' if work_style['leader_ok'] else 'NG'}")

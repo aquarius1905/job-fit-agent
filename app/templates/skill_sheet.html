@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}スキルシート | job-fit-agent{% endblock %}
+{% block title %}プロフィール | job-fit-agent{% endblock %}
 {% block content %}
 
 <section class="card">
@@ -43,19 +43,19 @@
     </label>
 
     <label class="field">
-      <span>希望単価（万円）</span>
+      <span>希望単価（時給）</span>
       <div class="rate-range">
         <select name="rate_min">
           <option value="">下限指定なし</option>
           {% for r in rate_options %}
-          <option value="{{ r }}" {% if work_style and work_style.rate_min == r|string %}selected{% endif %}>{{ r }}万円</option>
+          <option value="{{ r }}" {% if work_style and work_style.rate_min == r|string %}selected{% endif %}>{{ r }}円</option>
           {% endfor %}
         </select>
         <span class="rate-sep">〜</span>
         <select name="rate_max">
           <option value="">上限指定なし</option>
           {% for r in rate_options %}
-          <option value="{{ r }}" {% if work_style and work_style.rate_max == r|string %}selected{% endif %}>{{ r }}万円</option>
+          <option value="{{ r }}" {% if work_style and work_style.rate_max == r|string %}selected{% endif %}>{{ r }}円</option>
           {% endfor %}
         </select>
       </div>
