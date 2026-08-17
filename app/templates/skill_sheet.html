@@ -27,12 +27,57 @@
 
 <section class="card">
   <h1>働き方の希望条件</h1>
-  <p class="muted">案件判定時に、技術スキルだけでなく働き方の希望条件との合致度も評価に加味されます。項目名: 希望内容（◯希望 / ×希望しない / どちらでも可 など）の形式で自由に記入してください。</p>
+  <p class="muted">案件判定時に、技術スキルだけでなく働き方の希望条件との合致度も評価に加味されます。</p>
 
   <form method="post" action="/work-style">
     <label class="field">
-      <span>働き方の希望条件</span>
-      <textarea name="manual_text" rows="10" placeholder="フルリモート: ◯&#10;出社あり: ×&#10;貸与PC: どちらでも可能&#10;実装中心: ◯&#10;リーダー/PMポジション: ×&#10;会議多め: ×&#10;新しい技術に触れられる: ◯">{{ work_style_text or '' }}</textarea>
+      <span>出社に関する希望（許容できる働き方をすべて選択）</span>
+      <div class="checkbox-group">
+        {% for opt in remote_options %}
+        <label class="checkbox-item">
+          <input type="checkbox" name="remote_options" value="{{ opt }}" {% if work_style and opt in (work_style.remote_options or []) %}checked{% endif %}>
+          {{ opt }}
+        </label>
+        {% endfor %}
+      </div>
+    </label>
+
+    <label class="field">
+      <span>希望単価（万円）</span>
+      <div class="rate-range">
+        <select name="rate_min">
+          <option value="">下限指定なし</option>
+          {% for r in rate_options %}
+          <option value="{{ r }}" {% if work_style and work_style.rate_min == r|string %}selected{% endif %}>{{ r }}万円</option>
+          {% endfor %}
+        </select>
+        <span class="rate-sep">〜</span>
+        <select name="rate_max">
+          <option value="">上限指定なし</option>
+          {% for r in rate_options %}
+          <option value="{{ r }}" {% if work_style and work_style.rate_max == r|string %}selected{% endif %}>{{ r }}万円</option>
+          {% endfor %}
+        </select>
+      </div>
+    </label>
+
+    <label class="field">
+      <span>ポジション</span>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" name="leader_ok" {% if work_style and work_style.leader_ok %}checked{% endif %}>
+          リーダーポジション OK
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="pm_ok" {% if work_style and work_style.pm_ok %}checked{% endif %}>
+          PMポジション OK
+        </label>
+      </div>
+    </label>
+
+    <label class="field">
+      <span>その他の希望条件（自由記述）</span>
+      <textarea name="free_text" rows="8" placeholder="貸与PC: どちらでも可能&#10;実装中心: ◯&#10;会議多め: ×&#10;新しい技術に触れられる: ◯">{{ (work_style.free_text if work_style else '') or '' }}</textarea>
     </label>
 
     <button type="submit">保存する</button>

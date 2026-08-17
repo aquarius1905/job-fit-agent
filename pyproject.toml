@@ -5,3 +5,6 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]  # 日本語プロンプト文字列が長くなるため行長チェックは対象外
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Form", "fastapi.Depends", "fastapi.Query"]

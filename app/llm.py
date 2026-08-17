@@ -106,6 +106,33 @@ _SYSTEM_PROMPT = """\
 """
 
 
+def compose_work_style_text(work_style: dict) -> str:
+    """構造化された働き方の希望条件を、プロンプトに渡すテキストへ組み立てる。"""
+    lines = []
+
+    remote_options = work_style.get("remote_options") or []
+    if remote_options:
+        lines.append(f"出社に関する希望（許容できる働き方）: {'、'.join(remote_options)}")
+
+    rate_min = work_style.get("rate_min")
+    rate_max = work_style.get("rate_max")
+    if rate_min or rate_max:
+        min_str = f"{rate_min}万円" if rate_min else "下限指定なし"
+        max_str = f"{rate_max}万円" if rate_max else "上限指定なし"
+        lines.append(f"希望単価: {min_str} 〜 {max_str}")
+
+    if "leader_ok" in work_style:
+        lines.append(f"リーダーポジション: {'OK' if work_style['leader_ok'] else 'NG'}")
+    if "pm_ok" in work_style:
+        lines.append(f"PMポジション: {'OK' if work_style['pm_ok'] else 'NG'}")
+
+    free_text = (work_style.get("free_text") or "").strip()
+    if free_text:
+        lines.append(free_text)
+
+    return "\n".join(lines)
+
+
 def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str) -> dict:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:

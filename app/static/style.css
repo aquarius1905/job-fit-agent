@@ -82,6 +82,41 @@ input[type="text"], input[type="file"], textarea {
 }
 textarea { resize: vertical; }
 
+select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+.checkbox-item input {
+  width: auto;
+}
+
+.rate-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rate-range select { flex: 1; }
+.rate-sep { color: var(--muted); }
+
 button {
   background: var(--accent);
   color: #fff;

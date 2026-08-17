@@ -17,6 +17,8 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 JST = ZoneInfo("Asia/Tokyo")
+RATE_OPTIONS = list(range(30, 151, 10))
+REMOTE_OPTIONS = ["フルリモート", "一部リモート", "常駐"]
 
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -47,7 +49,9 @@ def skill_sheet_form(request: Request):
         {
             "request": request,
             "skill_sheet_text": storage.load_skill_sheet(),
-            "work_style_text": storage.load_work_style(),
+            "work_style": storage.load_work_style(),
+            "rate_options": RATE_OPTIONS,
+            "remote_options": REMOTE_OPTIONS,
             "error": None,
         },
     )
@@ -69,7 +73,9 @@ async def skill_sheet_upload(
                 {
                     "request": request,
                     "skill_sheet_text": storage.load_skill_sheet(),
-                    "work_style_text": storage.load_work_style(),
+                    "work_style": storage.load_work_style(),
+                    "rate_options": RATE_OPTIONS,
+                    "remote_options": REMOTE_OPTIONS,
                     "error": str(e),
                 },
                 status_code=400,
@@ -82,8 +88,24 @@ async def skill_sheet_upload(
 
 
 @app.post("/work-style", response_class=HTMLResponse)
-async def work_style_upload(manual_text: str = Form("")):
-    storage.save_work_style(manual_text)
+async def work_style_upload(
+    remote_options: list[str] = Form([]),
+    rate_min: str = Form(""),
+    rate_max: str = Form(""),
+    leader_ok: bool = Form(False),
+    pm_ok: bool = Form(False),
+    free_text: str = Form(""),
+):
+    storage.save_work_style(
+        {
+            "remote_options": remote_options,
+            "rate_min": rate_min,
+            "rate_max": rate_max,
+            "leader_ok": leader_ok,
+            "pm_ok": pm_ok,
+            "free_text": free_text,
+        }
+    )
     return RedirectResponse(url="/skill-sheet", status_code=303)
 
 
@@ -97,7 +119,7 @@ async def evaluate(
     skill_sheet = storage.load_skill_sheet()
     if not skill_sheet:
         return RedirectResponse(url="/skill-sheet", status_code=303)
-    work_style = storage.load_work_style() or ""
+    work_style_text = llm.compose_work_style_text(storage.load_work_style())
 
     posting_text = job_posting_text
     if job_posting_file is not None and job_posting_file.filename:
@@ -110,7 +132,9 @@ async def evaluate(
         error = "求人票のテキストを入力するかファイルを選択してください。"
     else:
         try:
-            result = await run_in_threadpool(llm.evaluate, skill_sheet, work_style, posting_text)
+            result = await run_in_threadpool(
+                llm.evaluate, skill_sheet, work_style_text, posting_text
+            )
             storage.append_history(job_title or "(タイトル未入力)", posting_text, result)
         except Exception as e:  # noqa: BLE001
             error = str(e)
