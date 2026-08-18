@@ -2,19 +2,19 @@
 {% block title %}プロフィール | job-fit-agent{% endblock %}
 {% block content %}
 
-{% if saved %}
-<div id="saved-toast" class="notice notice-success">保存しました</div>
-{% endif %}
+<div id="saved-toast" class="notice notice-success toast" hidden>保存しました</div>
 
 <section class="card">
   <h1>スキルシート登録</h1>
   <p class="muted">Excel(.xlsx) / Word(.docx) をアップロードするとテキストを自動抽出します。内容はこのマシンの data/ フォルダにのみ保存され、外部には送信されません（判定時のみClaude APIに送られます）。</p>
 
+  <div id="skill-sheet-error">
   {% if error %}
   <div class="notice notice-error">{{ error }}</div>
   {% endif %}
+  </div>
 
-  <form method="post" action="/skill-sheet" enctype="multipart/form-data">
+  <form id="skill-sheet-form" method="post" action="/skill-sheet" enctype="multipart/form-data">
     <label class="field">
       <span>ファイルから登録</span>
       <input type="file" name="file" accept=".xlsx,.docx,.txt,.md">
@@ -22,7 +22,7 @@
 
     <label class="field">
       <span>または直接編集・貼り付け</span>
-      <textarea name="manual_text" rows="16" placeholder="経歴・スキルをテキストで入力">{{ skill_sheet_text or '' }}</textarea>
+      <textarea id="manual-text" name="manual_text" rows="16" placeholder="経歴・スキルをテキストで入力">{{ skill_sheet_text or '' }}</textarea>
     </label>
 
     <button type="submit">保存する</button>
@@ -33,7 +33,7 @@
   <h1>働き方の希望条件</h1>
   <p class="muted">案件判定時に、技術スキルだけでなく働き方の希望条件との合致度も評価に加味されます。</p>
 
-  <form method="post" action="/work-style">
+  <form id="work-style-form" method="post" action="/work-style">
     <label class="field">
       <span>出社に関する希望（許容できる働き方をすべて選択）</span>
       <div class="checkbox-group">
@@ -100,14 +100,56 @@
   </form>
 </section>
 
-{% if saved %}
 <script>
-setTimeout(function () {
+let savedToastTimer;
+function showSavedToast() {
   const toast = document.getElementById('saved-toast');
-  if (toast) toast.remove();
-  history.replaceState(null, '', location.pathname);
-}, 5000);
-</script>
+  toast.hidden = false;
+  clearTimeout(savedToastTimer);
+  savedToastTimer = setTimeout(function () {
+    toast.hidden = true;
+  }, 5000);
+}
+
+{% if saved %}
+showSavedToast();
+history.replaceState(null, '', location.pathname);
 {% endif %}
+
+document.getElementById('skill-sheet-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const form = e.target;
+  const errorBox = document.getElementById('skill-sheet-error');
+  fetch(form.action, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'fetch' },
+    body: new FormData(form),
+  })
+    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+    .then(function (result) {
+      if (result.ok) {
+        errorBox.innerHTML = '';
+        document.getElementById('manual-text').value = result.data.skill_sheet_text;
+        showSavedToast();
+      } else {
+        errorBox.innerHTML = '<div class="notice notice-error"></div>';
+        errorBox.firstChild.textContent = result.data.error;
+      }
+    });
+});
+
+document.getElementById('work-style-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const form = e.target;
+  fetch(form.action, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'fetch' },
+    body: new FormData(form),
+  })
+    .then(function (res) {
+      if (res.ok) showSavedToast();
+    });
+});
+</script>
 
 {% endblock %}

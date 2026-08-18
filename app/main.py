@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
@@ -32,6 +32,10 @@ def format_jst(iso_timestamp: str) -> str:
 
 
 templates.env.filters["jst"] = format_jst
+
+
+def is_ajax(request: Request) -> bool:
+    return request.headers.get("x-requested-with") == "fetch"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -71,6 +75,8 @@ async def skill_sheet_upload(
         try:
             text = parsing.extract_text(file.filename, content)
         except ValueError as e:
+            if is_ajax(request):
+                return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
             return templates.TemplateResponse(
                 "skill_sheet.html",
                 {
@@ -88,11 +94,14 @@ async def skill_sheet_upload(
         text = manual_text
 
     storage.save_skill_sheet(text)
+    if is_ajax(request):
+        return JSONResponse({"ok": True, "skill_sheet_text": text})
     return RedirectResponse(url="/skill-sheet?saved=1", status_code=303)
 
 
 @app.post("/work-style", response_class=HTMLResponse)
 async def work_style_upload(
+    request: Request,
     remote_options: list[str] = Form([]),
     weekly_days: list[str] = Form([]),
     rate_min: str = Form(""),
@@ -112,6 +121,8 @@ async def work_style_upload(
             "free_text": free_text,
         }
     )
+    if is_ajax(request):
+        return JSONResponse({"ok": True})
     return RedirectResponse(url="/skill-sheet?saved=1", status_code=303)
 
 

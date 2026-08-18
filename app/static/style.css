@@ -148,6 +148,14 @@ button:hover:not(:disabled) { opacity: 0.9; }
   border-color: #bbf7d0;
   color: var(--ok);
 }
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  margin-bottom: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
 
 .score-row {
   display: flex;
