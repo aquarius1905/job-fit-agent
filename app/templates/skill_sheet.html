@@ -2,6 +2,10 @@
 {% block title %}プロフィール | job-fit-agent{% endblock %}
 {% block content %}
 
+{% if saved %}
+<div id="saved-toast" class="notice notice-success">保存しました</div>
+{% endif %}
+
 <section class="card">
   <h1>スキルシート登録</h1>
   <p class="muted">Excel(.xlsx) / Word(.docx) をアップロードするとテキストを自動抽出します。内容はこのマシンの data/ フォルダにのみ保存され、外部には送信されません（判定時のみClaude APIに送られます）。</p>
@@ -95,5 +99,15 @@
     <button type="submit">保存する</button>
   </form>
 </section>
+
+{% if saved %}
+<script>
+setTimeout(function () {
+  const toast = document.getElementById('saved-toast');
+  if (toast) toast.remove();
+  history.replaceState(null, '', location.pathname);
+}, 5000);
+</script>
+{% endif %}
 
 {% endblock %}

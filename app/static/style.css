@@ -143,6 +143,11 @@ button:hover:not(:disabled) { opacity: 0.9; }
   border-color: #fecaca;
   color: var(--ng);
 }
+.notice-success {
+  background: var(--ok-bg);
+  border-color: #bbf7d0;
+  color: var(--ok);
+}
 
 .score-row {
   display: flex;

@@ -44,7 +44,7 @@ def index(request: Request):
 
 
 @app.get("/skill-sheet", response_class=HTMLResponse)
-def skill_sheet_form(request: Request):
+def skill_sheet_form(request: Request, saved: bool = False):
     return templates.TemplateResponse(
         "skill_sheet.html",
         {
@@ -54,6 +54,7 @@ def skill_sheet_form(request: Request):
             "rate_options": RATE_OPTIONS,
             "remote_options": REMOTE_OPTIONS,
             "weekly_days_options": WEEKLY_DAYS_OPTIONS,
+            "saved": saved,
             "error": None,
         },
     )
@@ -87,7 +88,7 @@ async def skill_sheet_upload(
         text = manual_text
 
     storage.save_skill_sheet(text)
-    return RedirectResponse(url="/skill-sheet", status_code=303)
+    return RedirectResponse(url="/skill-sheet?saved=1", status_code=303)
 
 
 @app.post("/work-style", response_class=HTMLResponse)
@@ -111,7 +112,7 @@ async def work_style_upload(
             "free_text": free_text,
         }
     )
-    return RedirectResponse(url="/skill-sheet", status_code=303)
+    return RedirectResponse(url="/skill-sheet?saved=1", status_code=303)
 
 
 @app.post("/evaluate", response_class=HTMLResponse)
