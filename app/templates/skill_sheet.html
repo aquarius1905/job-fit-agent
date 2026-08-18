@@ -43,6 +43,18 @@
     </label>
 
     <label class="field">
+      <span>希望稼働日数（週あたり、許容できる日数をすべて選択）</span>
+      <div class="checkbox-group">
+        {% for opt in weekly_days_options %}
+        <label class="checkbox-item">
+          <input type="checkbox" name="weekly_days" value="{{ opt }}" {% if work_style and opt in (work_style.weekly_days or []) %}checked{% endif %}>
+          {{ opt }}
+        </label>
+        {% endfor %}
+      </div>
+    </label>
+
+    <label class="field">
       <span>希望単価（時給）</span>
       <div class="rate-range">
         <select name="rate_min">

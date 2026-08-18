@@ -97,6 +97,15 @@
   <p class="muted">特になし</p>
   {% endif %}
 
+  {% if result.questions_to_ask %}
+  <h3>確認したいこと</h3>
+  <ul class="concerns">
+    {% for q in result.questions_to_ask %}
+    <li>{{ q }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
   <h3>応募文</h3>
   <textarea id="application-letter" rows="10" readonly>{{ result.application_letter }}</textarea>
   <button type="button" onclick="copyLetter()">応募文をコピー</button>

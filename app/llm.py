@@ -75,6 +75,16 @@ _EVALUATION_TOOL = {
                 "description": "応募前に確認・注意すべき懸念点",
                 "items": {"type": "string"},
             },
+            "questions_to_ask": {
+                "type": "array",
+                "description": (
+                    "応募前に案件担当者（エージェント等）に確認したい質問のリスト。"
+                    "特に働き方の希望条件と求人票の記載が一致しない・記載が曖昧な場合に、"
+                    "頻度や条件の詳細を確認するための具体的な質問を含める"
+                    "（例: フルリモート希望だが出社ありと書かれている場合「出社の頻度・エリアを教えてください」）"
+                ),
+                "items": {"type": "string"},
+            },
             "application_letter": {
                 "type": "string",
                 "description": "この求人にそのまま送れる日本語の応募文（完成形、追記不要なレベル）",
@@ -86,6 +96,7 @@ _EVALUATION_TOOL = {
             "required_skills",
             "work_style_fit",
             "concerns",
+            "questions_to_ask",
             "application_letter",
         ],
     },
@@ -101,6 +112,7 @@ _SYSTEM_PROMPT = """\
 - 必須(MUST)条件と歓迎(WANT)条件は求人票の表現から判別し、requiredフィールドに反映する。
 - 働き方の希望条件は、項目ごとに求人票の記載内容と照らし合わせてmatchesを判定する。求人票に該当する記載がなければreasonに「求人票に記載なし」と明記し、matchesはfalseにする。「どちらでも可」など希望に幅がある項目は、求人票がその範囲に収まっていればmatchesをtrueにする。
 - 懸念点(concerns)には、経験年数不足・スキルのブランク・稼働条件（単価等）のミスマッチに加え、働き方の希望条件との重大な不一致（例: フルリモート希望なのに出社必須）があれば具体的に挙げる。
+- 確認質問(questions_to_ask)には、懸念点のうち求人票の記載だけでは判断がつかないもの（例: フルリモート希望なのに「原則リモート、必要に応じて出社」等の曖昧な条件）について、案件担当者に直接聞けば解消しうる具体的な質問を作成する。「出社の頻度は？」のような曖昧な聞き方ではなく、「月にどの程度の出社が発生しますか？」「出社が必要な場合、最寄り駅・エリアはどこですか？」のように、相手がそのまま回答できる粒度で書く。働き方の希望条件との不一致がなければ無理に作らず、空配列でよい。
 - 総合適合度(fit_score)は技術面のスキル充足だけでなく、働き方の希望条件との合致度も加味して判定する。働き方の希望条件で重大な不一致（必須級の希望に反する条件）がある場合は、技術面が満たされていてもスコアを大きく下げること。
 - 応募文(application_letter)は、スキルシートの中から本案件に関連が強い経験を選んで簡潔にアピールし、丁寧だが定型文っぽくない日本語で書く。誇張や虚偽の経験を書かない。
 """
@@ -113,6 +125,10 @@ def compose_work_style_text(work_style: dict) -> str:
     remote_options = work_style.get("remote_options") or []
     if remote_options:
         lines.append(f"出社に関する希望（許容できる働き方）: {'、'.join(remote_options)}")
+
+    weekly_days = work_style.get("weekly_days") or []
+    if weekly_days:
+        lines.append(f"希望稼働日数（週あたり、許容できる範囲）: {'、'.join(weekly_days)}")
 
     rate_min = work_style.get("rate_min")
     rate_max = work_style.get("rate_max")

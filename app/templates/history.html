@@ -51,6 +51,12 @@
       <ul class="concerns">
         {% for c in e.evaluation.concerns %}<li>{{ c }}</li>{% endfor %}
       </ul>
+      {% if e.evaluation.questions_to_ask %}
+      <p><strong>確認したいこと:</strong></p>
+      <ul class="concerns">
+        {% for q in e.evaluation.questions_to_ask %}<li>{{ q }}</li>{% endfor %}
+      </ul>
+      {% endif %}
       <p><strong>応募文:</strong></p>
       <textarea rows="8" readonly>{{ e.evaluation.application_letter }}</textarea>
     </div>

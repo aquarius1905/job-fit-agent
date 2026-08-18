@@ -19,6 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent
 JST = ZoneInfo("Asia/Tokyo")
 RATE_OPTIONS = list(range(1000, 10001, 500))
 REMOTE_OPTIONS = ["フルリモート", "一部リモート", "常駐"]
+WEEKLY_DAYS_OPTIONS = ["週1日", "週2日", "週3日", "週4日", "週5日(フルタイム)"]
 
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -52,6 +53,7 @@ def skill_sheet_form(request: Request):
             "work_style": storage.load_work_style(),
             "rate_options": RATE_OPTIONS,
             "remote_options": REMOTE_OPTIONS,
+            "weekly_days_options": WEEKLY_DAYS_OPTIONS,
             "error": None,
         },
     )
@@ -76,6 +78,7 @@ async def skill_sheet_upload(
                     "work_style": storage.load_work_style(),
                     "rate_options": RATE_OPTIONS,
                     "remote_options": REMOTE_OPTIONS,
+                    "weekly_days_options": WEEKLY_DAYS_OPTIONS,
                     "error": str(e),
                 },
                 status_code=400,
@@ -90,6 +93,7 @@ async def skill_sheet_upload(
 @app.post("/work-style", response_class=HTMLResponse)
 async def work_style_upload(
     remote_options: list[str] = Form([]),
+    weekly_days: list[str] = Form([]),
     rate_min: str = Form(""),
     rate_max: str = Form(""),
     leader_ok: bool = Form(False),
@@ -99,6 +103,7 @@ async def work_style_upload(
     storage.save_work_style(
         {
             "remote_options": remote_options,
+            "weekly_days": weekly_days,
             "rate_min": rate_min,
             "rate_max": rate_max,
             "leader_ok": leader_ok,
