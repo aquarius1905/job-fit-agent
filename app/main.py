@@ -189,8 +189,22 @@ async def evaluate(
     )
 
 
+HISTORY_PAGE_SIZE = 10
+
+
 @app.get("/history", response_class=HTMLResponse)
-def history(request: Request):
+def history(request: Request, page: int = 1):
+    all_entries = storage.load_history()
+    total_pages = max(1, -(-len(all_entries) // HISTORY_PAGE_SIZE))
+    page = min(max(page, 1), total_pages)
+    start = (page - 1) * HISTORY_PAGE_SIZE
+    entries = all_entries[start : start + HISTORY_PAGE_SIZE]
     return templates.TemplateResponse(
-        "history.html", {"request": request, "entries": storage.load_history()}
+        "history.html",
+        {
+            "request": request,
+            "entries": entries,
+            "page": page,
+            "total_pages": total_pages,
+        },
     )

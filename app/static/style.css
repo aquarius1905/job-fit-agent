@@ -216,6 +216,24 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .hist-date { color: var(--muted); font-size: 13px; }
 .history-body { margin-top: 14px; }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+.pagination a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+}
+.pagination a.disabled {
+  color: var(--muted);
+  pointer-events: none;
+}
+.pagination-status { color: var(--muted); font-size: 14px; }
+
 .loading-overlay {
   display: none;
   position: fixed;

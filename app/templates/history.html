@@ -62,6 +62,14 @@
     </div>
   </details>
   {% endfor %}
+
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    <a href="/history?page={{ page - 1 }}" class="{{ 'disabled' if page <= 1 else '' }}">← 前へ</a>
+    <span class="pagination-status">{{ page }} / {{ total_pages }}</span>
+    <a href="/history?page={{ page + 1 }}" class="{{ 'disabled' if page >= total_pages else '' }}">次へ →</a>
+  </nav>
+  {% endif %}
 </section>
 
 {% endblock %}
