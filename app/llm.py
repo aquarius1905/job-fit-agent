@@ -32,6 +32,21 @@ _EVALUATION_TOOL = {
                             "type": "boolean",
                             "description": "必須(true)か歓迎(false)か",
                         },
+                        "required_years": {
+                            "type": ["number", "null"],
+                            "description": (
+                                "この項目について求人票が具体的な実務経験年数（「○年以上」「○年程度」等）を"
+                                "指定している場合のみ、その年数（例: 7）。年数の指定がない項目はnull。"
+                            ),
+                        },
+                        "actual_years": {
+                            "type": ["number", "null"],
+                            "description": (
+                                "required_yearsを設定した場合のみ設定。スキルシートに基づく、"
+                                "その技術・領域そのものの実務年数（無関係な別領域の経験は含めない）。"
+                                "算出できない場合は0。required_yearsがnullの項目ではnullでよい。"
+                            ),
+                        },
                         "meets": {
                             "type": "string",
                             "enum": ["○", "△", "×"],
@@ -115,10 +130,8 @@ _SYSTEM_PROMPT = """\
 判定方針:
 - スキルシートに明記されていない事項は「不明」として満たしていない(meets="×")扱いにし、reasonに「スキルシートに記載なし」等と明記する。憶測で満たしていると判定しない。
 - 必須(MUST)条件と歓迎(WANT)条件は求人票の表現から判別し、requiredフィールドに反映する。
-- 経験年数要件（「○年以上」「○年程度」等）は厳密に判定する。求人票が特定の技術・領域（例: Web開発、特定言語、特定ポジション）の実務経験年数を指定している場合、スキルシートに記載された「その技術・領域そのもの」の実務年数のみで判定し、無関係・別領域の経験年数（他分野の開発経験、社会人経験全体、フリーランス経験全体など）を合算して充足したことにしない。経験の幅広さや関連スキルの多さで年数不足を相殺しない。年数の判定基準は以下の通り、実務年数と求人要件年数の比率で機械的に判断する（曖昧に「やや不足」と評価しない）。
-  - 実務年数が求人要件年数以上 → meets="○"
-  - 実務年数が求人要件年数の80%以上、求人要件年数未満（例: 要件7年に対し実務5.6〜7年）→ meets="△"
-  - 実務年数が求人要件年数の80%未満（例: 要件7年に対し実務5.6年未満）、または算出できない → meets="×"
+- 経験年数要件（「○年以上」「○年程度」等）がある項目は、required_yearsに求人票が要求する年数を、actual_yearsにスキルシートに基づく「その技術・領域そのもの」の実務年数を必ず数値で入れること。無関係・別領域の経験年数（他分野の開発経験、社会人経験全体、フリーランス経験全体など）をactual_yearsに合算しない。算出できない場合はactual_years=0とする。年数要件がない項目はrequired_years/actual_yearsともにnullでよい。
+  meetsはこの2つの数値の比率（actual_years / required_years）を機械的に反映すること: 100%以上→"○"、80%以上100%未満→"△"、80%未満または算出不能→"×"。経験の幅広さ・関連スキルの多さ・案件数の多さなど比率に含まれない要素を理由に、この比率より甘い側へ判定を格上げしてはならない（このmeetsの値はアプリ側でも上記比率から再計算され、矛盾があれば上書きされる）。
   reasonには必ず実際の年数と求人要件年数を対比して明記する（例: 「実務約4年 / 求人要件7年程度で約57%相当のため不足」）。
 - 働き方の希望条件は、項目ごとに求人票の記載内容と照らし合わせてmatchesを判定する。求人票に該当する記載がなければreasonに「求人票に記載なし」と明記し、matchesはfalseにする。「どちらでも可」など希望に幅がある項目は、求人票がその範囲に収まっていればmatchesをtrueにする。
 - 懸念点(concerns)には、経験年数不足・スキルのブランク・稼働条件（単価等）のミスマッチに加え、働き方の希望条件との重大な不一致（例: フルリモート希望なのに出社必須）があれば具体的に挙げる。
@@ -189,6 +202,24 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
 
     for block in response.content:
         if block.type == "tool_use" and block.name == "submit_evaluation":
-            return block.input
+            result = block.input
+            _enforce_experience_thresholds(result.get("required_skills") or [])
+            return result
 
     raise RuntimeError("Claudeからの評価結果を取得できませんでした。")
+
+
+def _enforce_experience_thresholds(required_skills: list[dict]) -> None:
+    """required_years/actual_yearsが設定された項目のmeetsを、比率に基づき機械的に上書きする。"""
+    for item in required_skills:
+        required_years = item.get("required_years")
+        if not required_years:
+            continue
+        actual_years = item.get("actual_years") or 0
+        ratio = actual_years / required_years
+        if ratio >= 1:
+            item["meets"] = "○"
+        elif ratio >= 0.8:
+            item["meets"] = "△"
+        else:
+            item["meets"] = "×"
