@@ -60,7 +60,7 @@
       <tr>
         <td>{{ "必須" if s.required else "歓迎" }}</td>
         <td>{{ s.skill }}</td>
-        <td class="{{ 'ok' if s.meets else 'ng' }}">{{ "○" if s.meets else "×" }}</td>
+        <td class="{{ s.meets | meets_class }}">{{ s.meets | meets_symbol }}</td>
         <td>{{ s.reason }}</td>
       </tr>
       {% endfor %}

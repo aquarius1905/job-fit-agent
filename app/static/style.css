@@ -7,8 +7,10 @@
   --accent: #2563eb;
   --ok: #15803d;
   --ng: #b91c1c;
+  --partial: #b45309;
   --ok-bg: #ecfdf3;
   --ng-bg: #fef2f2;
+  --partial-bg: #fffbeb;
 }
 
 * { box-sizing: border-box; }
@@ -190,6 +192,7 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .skill-table th { background: #f9fafb; font-weight: 600; }
 .skill-table td.ok { color: var(--ok); background: var(--ok-bg); font-weight: 700; text-align: center; }
 .skill-table td.ng { color: var(--ng); background: var(--ng-bg); font-weight: 700; text-align: center; }
+.skill-table td.partial { color: var(--partial); background: var(--partial-bg); font-weight: 700; text-align: center; }
 
 .concerns { margin: 0 0 20px; padding-left: 20px; }
 .concerns li { margin-bottom: 4px; }

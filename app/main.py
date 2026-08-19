@@ -34,6 +34,26 @@ def format_jst(iso_timestamp: str) -> str:
 templates.env.filters["jst"] = format_jst
 
 
+def meets_class(value: object) -> str:
+    if value == "○" or value is True:
+        return "ok"
+    if value == "△":
+        return "partial"
+    return "ng"
+
+
+def meets_symbol(value: object) -> str:
+    if value == "○" or value is True:
+        return "○"
+    if value == "△":
+        return "△"
+    return "×"
+
+
+templates.env.filters["meets_class"] = meets_class
+templates.env.filters["meets_symbol"] = meets_symbol
+
+
 def is_ajax(request: Request) -> bool:
     return request.headers.get("x-requested-with") == "fetch"
 
