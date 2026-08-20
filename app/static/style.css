@@ -36,13 +36,13 @@ body {
   justify-content: space-between;
 }
 .brand { font-weight: 700; text-decoration: none; color: var(--text); }
-nav a {
+.topbar nav a {
   margin-left: 18px;
   text-decoration: none;
   color: var(--muted);
   font-size: 14px;
 }
-nav a:hover { color: var(--accent); }
+.topbar nav a:hover { color: var(--accent); }
 
 .container {
   max-width: 880px;
