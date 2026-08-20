@@ -193,8 +193,13 @@ HISTORY_PAGE_SIZE = 10
 
 
 @app.get("/history", response_class=HTMLResponse)
-def history(request: Request, page: int = 1):
+def history(request: Request, page: int = 1, sort: str = "date"):
     all_entries = storage.load_history()
+    if sort == "score":
+        all_entries.sort(key=lambda e: e["evaluation"]["fit_score"], reverse=True)
+    else:
+        sort = "date"
+
     total_pages = max(1, -(-len(all_entries) // HISTORY_PAGE_SIZE))
     page = min(max(page, 1), total_pages)
     start = (page - 1) * HISTORY_PAGE_SIZE
@@ -206,5 +211,6 @@ def history(request: Request, page: int = 1):
             "entries": entries,
             "page": page,
             "total_pages": total_pages,
+            "sort": sort,
         },
     )

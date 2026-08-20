@@ -216,6 +216,22 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .hist-date { color: var(--muted); font-size: 13px; }
 .history-body { margin-top: 14px; }
 
+.sort-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.sort-toggle a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.sort-toggle a.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .pagination {
   display: flex;
   align-items: center;

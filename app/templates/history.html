@@ -5,6 +5,14 @@
 <section class="card">
   <h1>判定履歴</h1>
 
+  {% if entries or total_pages > 1 %}
+  <div class="sort-toggle">
+    <span class="muted">並び順:</span>
+    <a href="/history?sort=date" class="{{ 'active' if sort == 'date' else '' }}">日付順</a>
+    <a href="/history?sort=score" class="{{ 'active' if sort == 'score' else '' }}">スコア順</a>
+  </div>
+  {% endif %}
+
   {% if not entries %}
   <p class="muted">まだ判定履歴がありません。</p>
   {% endif %}
@@ -65,9 +73,9 @@
 
   {% if total_pages > 1 %}
   <nav class="pagination">
-    <a href="/history?page={{ page - 1 }}" class="{{ 'disabled' if page <= 1 else '' }}">← 前へ</a>
+    <a href="/history?page={{ page - 1 }}&sort={{ sort }}" class="{{ 'disabled' if page <= 1 else '' }}">← 前へ</a>
     <span class="pagination-status">{{ page }} / {{ total_pages }}</span>
-    <a href="/history?page={{ page + 1 }}" class="{{ 'disabled' if page >= total_pages else '' }}">次へ →</a>
+    <a href="/history?page={{ page + 1 }}&sort={{ sort }}" class="{{ 'disabled' if page >= total_pages else '' }}">次へ →</a>
   </nav>
   {% endif %}
 </section>
