@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_evaluation_macros.html" as ev %}
 {% block title %}履歴 | job-fit-agent{% endblock %}
 {% block content %}
 
@@ -26,44 +27,16 @@
     </summary>
     <div class="history-body">
       <p><strong>総合判定:</strong> {{ e.evaluation.fit_label }}</p>
-      <table class="skill-table">
-        <thead><tr><th>区分</th><th>スキル・条件</th><th>判定</th><th>理由</th></tr></thead>
-        <tbody>
-        {% for s in e.evaluation.required_skills %}
-          <tr>
-            <td>{{ "必須" if s.required else "歓迎" }}</td>
-            <td>{{ s.skill }}</td>
-            <td class="{{ s.meets | meets_class }}">{{ s.meets | meets_symbol }}</td>
-            <td>{{ s.reason }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+      {{ ev.required_skills_table(e.evaluation.required_skills) }}
       {% if e.evaluation.work_style_fit %}
       <p><strong>働き方の適合度:</strong></p>
-      <table class="skill-table">
-        <thead><tr><th>項目</th><th>希望</th><th>判定</th><th>理由</th></tr></thead>
-        <tbody>
-        {% for w in e.evaluation.work_style_fit %}
-          <tr>
-            <td>{{ w.item }}</td>
-            <td>{{ w.preference }}</td>
-            <td class="{{ 'ok' if w.matches else 'ng' }}">{{ "○" if w.matches else "×" }}</td>
-            <td>{{ w.reason }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+      {{ ev.work_style_fit_table(e.evaluation.work_style_fit) }}
       {% endif %}
       <p><strong>懸念点:</strong></p>
-      <ul class="concerns">
-        {% for c in e.evaluation.concerns %}<li>{{ c }}</li>{% endfor %}
-      </ul>
+      {{ ev.concerns_list(e.evaluation.concerns) }}
       {% if e.evaluation.questions_to_ask %}
       <p><strong>確認したいこと:</strong></p>
-      <ul class="concerns">
-        {% for q in e.evaluation.questions_to_ask %}<li>{{ q }}</li>{% endfor %}
-      </ul>
+      {{ ev.questions_list(e.evaluation.questions_to_ask) }}
       {% endif %}
       <p><strong>応募文:</strong></p>
       <textarea rows="8" readonly>{{ e.evaluation.application_letter }}</textarea>

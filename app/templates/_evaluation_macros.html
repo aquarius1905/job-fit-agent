@@ -1,0 +1,51 @@
+{% macro required_skills_table(required_skills) %}
+<table class="skill-table">
+  <thead>
+    <tr><th>区分</th><th>スキル・条件</th><th>判定</th><th>理由</th></tr>
+  </thead>
+  <tbody>
+    {% for s in required_skills %}
+    <tr>
+      <td>{{ "必須" if s.required else "歓迎" }}</td>
+      <td>{{ s.skill }}</td>
+      <td class="{{ s.meets | meets_class }}">{{ s.meets | meets_symbol }}</td>
+      <td>{{ s.reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% macro work_style_fit_table(work_style_fit) %}
+<table class="skill-table">
+  <thead>
+    <tr><th>項目</th><th>希望</th><th>判定</th><th>理由</th></tr>
+  </thead>
+  <tbody>
+    {% for w in work_style_fit %}
+    <tr>
+      <td>{{ w.item }}</td>
+      <td>{{ w.preference }}</td>
+      <td class="{{ 'ok' if w.matches else 'ng' }}">{{ "○" if w.matches else "×" }}</td>
+      <td>{{ w.reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% macro concerns_list(concerns, empty_text=none) %}
+{% if not concerns and empty_text %}
+<p class="muted">{{ empty_text }}</p>
+{% else %}
+<ul class="concerns">
+  {% for c in concerns %}<li>{{ c }}</li>{% endfor %}
+</ul>
+{% endif %}
+{% endmacro %}
+
+{% macro questions_list(questions) %}
+<ul class="concerns">
+  {% for q in questions %}<li>{{ q }}</li>{% endfor %}
+</ul>
+{% endmacro %}

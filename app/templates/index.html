@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_evaluation_macros.html" as ev %}
 {% block title %}判定 | job-fit-agent{% endblock %}
 {% block content %}
 
@@ -51,59 +52,19 @@
   </div>
 
   <h3>必須・歓迎スキル充足チェック</h3>
-  <table class="skill-table">
-    <thead>
-      <tr><th>区分</th><th>スキル・条件</th><th>判定</th><th>理由</th></tr>
-    </thead>
-    <tbody>
-      {% for s in result.required_skills %}
-      <tr>
-        <td>{{ "必須" if s.required else "歓迎" }}</td>
-        <td>{{ s.skill }}</td>
-        <td class="{{ s.meets | meets_class }}">{{ s.meets | meets_symbol }}</td>
-        <td>{{ s.reason }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {{ ev.required_skills_table(result.required_skills) }}
 
   {% if result.work_style_fit %}
   <h3>働き方の適合度</h3>
-  <table class="skill-table">
-    <thead>
-      <tr><th>項目</th><th>希望</th><th>判定</th><th>理由</th></tr>
-    </thead>
-    <tbody>
-      {% for w in result.work_style_fit %}
-      <tr>
-        <td>{{ w.item }}</td>
-        <td>{{ w.preference }}</td>
-        <td class="{{ 'ok' if w.matches else 'ng' }}">{{ "○" if w.matches else "×" }}</td>
-        <td>{{ w.reason }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {{ ev.work_style_fit_table(result.work_style_fit) }}
   {% endif %}
 
   <h3>懸念点</h3>
-  {% if result.concerns %}
-  <ul class="concerns">
-    {% for c in result.concerns %}
-    <li>{{ c }}</li>
-    {% endfor %}
-  </ul>
-  {% else %}
-  <p class="muted">特になし</p>
-  {% endif %}
+  {{ ev.concerns_list(result.concerns, empty_text='特になし') }}
 
   {% if result.questions_to_ask %}
   <h3>確認したいこと</h3>
-  <ul class="concerns">
-    {% for q in result.questions_to_ask %}
-    <li>{{ q }}</li>
-    {% endfor %}
-  </ul>
+  {{ ev.questions_list(result.questions_to_ask) }}
   {% endif %}
 
   <h3>応募文</h3>
