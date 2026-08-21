@@ -17,7 +17,7 @@
 
 ## スクリーンショット
 
-![案件判定フォーム](docs/screenshot.png)
+![案件判定フォーム](docs/screenshot.jpeg)
 
 ## 技術スタック
 
