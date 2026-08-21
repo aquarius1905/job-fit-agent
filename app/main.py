@@ -67,20 +67,23 @@ def index(request: Request):
     )
 
 
+def _skill_sheet_context(request: Request, error: str | None = None, saved: bool = False) -> dict:
+    return {
+        "request": request,
+        "skill_sheet_text": storage.load_skill_sheet(),
+        "work_style": storage.load_work_style(),
+        "rate_options": RATE_OPTIONS,
+        "remote_options": REMOTE_OPTIONS,
+        "weekly_days_options": WEEKLY_DAYS_OPTIONS,
+        "saved": saved,
+        "error": error,
+    }
+
+
 @app.get("/skill-sheet", response_class=HTMLResponse)
 def skill_sheet_form(request: Request, saved: bool = False):
     return templates.TemplateResponse(
-        "skill_sheet.html",
-        {
-            "request": request,
-            "skill_sheet_text": storage.load_skill_sheet(),
-            "work_style": storage.load_work_style(),
-            "rate_options": RATE_OPTIONS,
-            "remote_options": REMOTE_OPTIONS,
-            "weekly_days_options": WEEKLY_DAYS_OPTIONS,
-            "saved": saved,
-            "error": None,
-        },
+        "skill_sheet.html", _skill_sheet_context(request, saved=saved)
     )
 
 
@@ -99,15 +102,7 @@ async def skill_sheet_upload(
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
             return templates.TemplateResponse(
                 "skill_sheet.html",
-                {
-                    "request": request,
-                    "skill_sheet_text": storage.load_skill_sheet(),
-                    "work_style": storage.load_work_style(),
-                    "rate_options": RATE_OPTIONS,
-                    "remote_options": REMOTE_OPTIONS,
-                    "weekly_days_options": WEEKLY_DAYS_OPTIONS,
-                    "error": str(e),
-                },
+                _skill_sheet_context(request, error=str(e)),
                 status_code=400,
             )
     else:

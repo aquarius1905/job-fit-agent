@@ -116,39 +116,36 @@ showSavedToast();
 history.replaceState(null, '', location.pathname);
 {% endif %}
 
-document.getElementById('skill-sheet-form').addEventListener('submit', function (e) {
-  e.preventDefault();
-  const form = e.target;
-  const errorBox = document.getElementById('skill-sheet-error');
-  fetch(form.action, {
+function postForm(form) {
+  return fetch(form.action, {
     method: 'POST',
     headers: { 'X-Requested-With': 'fetch' },
     body: new FormData(form),
-  })
-    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
-    .then(function (result) {
-      if (result.ok) {
-        errorBox.innerHTML = '';
-        document.getElementById('manual-text').value = result.data.skill_sheet_text;
-        showSavedToast();
-      } else {
-        errorBox.innerHTML = '<div class="notice notice-error"></div>';
-        errorBox.firstChild.textContent = result.data.error;
-      }
-    });
+  }).then(function (res) {
+    return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+  });
+}
+
+document.getElementById('skill-sheet-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const errorBox = document.getElementById('skill-sheet-error');
+  postForm(e.target).then(function (result) {
+    if (result.ok) {
+      errorBox.innerHTML = '';
+      document.getElementById('manual-text').value = result.data.skill_sheet_text;
+      showSavedToast();
+    } else {
+      errorBox.innerHTML = '<div class="notice notice-error"></div>';
+      errorBox.firstChild.textContent = result.data.error;
+    }
+  });
 });
 
 document.getElementById('work-style-form').addEventListener('submit', function (e) {
   e.preventDefault();
-  const form = e.target;
-  fetch(form.action, {
-    method: 'POST',
-    headers: { 'X-Requested-With': 'fetch' },
-    body: new FormData(form),
-  })
-    .then(function (res) {
-      if (res.ok) showSavedToast();
-    });
+  postForm(e.target).then(function (result) {
+    if (result.ok) showSavedToast();
+  });
 });
 </script>
 
