@@ -19,7 +19,10 @@ def extract_text(filename: str, content: bytes) -> str:
 
 
 def _extract_xlsx(content: bytes) -> str:
-    workbook = load_workbook(io.BytesIO(content), data_only=True)
+    try:
+        workbook = load_workbook(io.BytesIO(content), data_only=True)
+    except Exception as e:
+        raise ValueError(f"Excelファイルを読み込めませんでした（破損している可能性があります）: {e}") from e
     lines: list[str] = []
     for sheet in workbook.worksheets:
         lines.append(f"# シート: {sheet.title}")
@@ -31,7 +34,10 @@ def _extract_xlsx(content: bytes) -> str:
 
 
 def _extract_docx(content: bytes) -> str:
-    document = Document(io.BytesIO(content))
+    try:
+        document = Document(io.BytesIO(content))
+    except Exception as e:
+        raise ValueError(f"Wordファイルを読み込めませんでした（破損している可能性があります）: {e}") from e
     lines: list[str] = []
     for paragraph in document.paragraphs:
         if paragraph.text.strip():

@@ -72,6 +72,28 @@ def test_evaluate_missing_posting_text_shows_error(isolated_data_dir):
     assert "求人票のテキストを入力するかファイルを選択してください" in res.text
 
 
+def test_evaluate_unsupported_job_posting_file_shows_error(isolated_data_dir):
+    client.post("/skill-sheet", data={"manual_text": "経歴"})
+    res = client.post(
+        "/evaluate",
+        files={"job_posting_file": ("posting.pdf", b"dummy", "application/pdf")},
+    )
+    assert res.status_code == 200
+    assert "対応していないファイル形式です" in res.text
+
+
+def test_skill_sheet_corrupt_xlsx_shows_error_instead_of_500(isolated_data_dir):
+    res = client.post(
+        "/skill-sheet",
+        files={"file": ("skill.xlsx", b"not a real zip file", "application/octet-stream")},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 400
+    body = res.json()
+    assert body["ok"] is False
+    assert "読み込めませんでした" in body["error"]
+
+
 def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch):
     client.post("/skill-sheet", data={"manual_text": "経歴"})
 

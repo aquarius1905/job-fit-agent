@@ -155,22 +155,27 @@ async def evaluate(
     work_style_text = llm.compose_work_style_text(storage.load_work_style())
 
     posting_text = job_posting_text
-    if job_posting_file is not None and job_posting_file.filename:
-        content = await job_posting_file.read()
-        posting_text = parsing.extract_text(job_posting_file.filename, content)
-
     error = None
     result = None
-    if not posting_text.strip():
-        error = "求人票のテキストを入力するかファイルを選択してください。"
-    else:
+
+    if job_posting_file is not None and job_posting_file.filename:
+        content = await job_posting_file.read()
         try:
-            result = await run_in_threadpool(
-                llm.evaluate, skill_sheet, work_style_text, posting_text
-            )
-            storage.append_history(job_title or "(タイトル未入力)", posting_text, result)
-        except Exception as e:  # noqa: BLE001
+            posting_text = parsing.extract_text(job_posting_file.filename, content)
+        except ValueError as e:
             error = str(e)
+
+    if not error:
+        if not posting_text.strip():
+            error = "求人票のテキストを入力するかファイルを選択してください。"
+        else:
+            try:
+                result = await run_in_threadpool(
+                    llm.evaluate, skill_sheet, work_style_text, posting_text
+                )
+                storage.append_history(job_title or "(タイトル未入力)", posting_text, result)
+            except Exception as e:  # noqa: BLE001
+                error = str(e)
 
     return templates.TemplateResponse(
         request,
