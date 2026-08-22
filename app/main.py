@@ -62,14 +62,14 @@ def is_ajax(request: Request) -> bool:
 def index(request: Request):
     skill_sheet = storage.load_skill_sheet()
     return templates.TemplateResponse(
+        request,
         "index.html",
-        {"request": request, "has_skill_sheet": skill_sheet is not None, "result": None},
+        {"has_skill_sheet": skill_sheet is not None, "result": None},
     )
 
 
-def _skill_sheet_context(request: Request, error: str | None = None, saved: bool = False) -> dict:
+def _skill_sheet_context(error: str | None = None, saved: bool = False) -> dict:
     return {
-        "request": request,
         "skill_sheet_text": storage.load_skill_sheet(),
         "work_style": storage.load_work_style(),
         "rate_options": RATE_OPTIONS,
@@ -83,7 +83,7 @@ def _skill_sheet_context(request: Request, error: str | None = None, saved: bool
 @app.get("/skill-sheet", response_class=HTMLResponse)
 def skill_sheet_form(request: Request, saved: bool = False):
     return templates.TemplateResponse(
-        "skill_sheet.html", _skill_sheet_context(request, saved=saved)
+        request, "skill_sheet.html", _skill_sheet_context(saved=saved)
     )
 
 
@@ -101,8 +101,9 @@ async def skill_sheet_upload(
             if is_ajax(request):
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
             return templates.TemplateResponse(
+                request,
                 "skill_sheet.html",
-                _skill_sheet_context(request, error=str(e)),
+                _skill_sheet_context(error=str(e)),
                 status_code=400,
             )
     else:
@@ -172,9 +173,9 @@ async def evaluate(
             error = str(e)
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "has_skill_sheet": True,
             "result": result,
             "error": error,
@@ -200,9 +201,9 @@ def history(request: Request, page: int = 1, sort: str = "date"):
     start = (page - 1) * HISTORY_PAGE_SIZE
     entries = all_entries[start : start + HISTORY_PAGE_SIZE]
     return templates.TemplateResponse(
+        request,
         "history.html",
         {
-            "request": request,
             "entries": entries,
             "page": page,
             "total_pages": total_pages,
