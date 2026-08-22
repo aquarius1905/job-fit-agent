@@ -1,6 +1,9 @@
 import pytest
+from dotenv import load_dotenv
 
 from app import storage
+
+load_dotenv()
 
 
 @pytest.fixture

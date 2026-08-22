@@ -12,3 +12,7 @@ extend-immutable-calls = ["fastapi.Form", "fastapi.Depends", "fastapi.Query"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "-m 'not llm_eval'"
+markers = [
+    "llm_eval: 実際にClaude APIを呼び出す判定精度のeval。コストがかかるため通常のpytest実行では除外される（`pytest -m llm_eval`で明示的に実行）。",
+]
