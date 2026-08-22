@@ -217,9 +217,10 @@ def _enforce_experience_thresholds(required_skills: list[dict]) -> None:
             continue
         actual_years = item.get("actual_years") or 0
         ratio = actual_years / required_years
-        if ratio >= 1:
+        epsilon = 1e-9  # 浮動小数点の誤差で境界値が誤判定されるのを防ぐ
+        if ratio >= 1 - epsilon:
             item["meets"] = "○"
-        elif ratio >= 0.8:
+        elif ratio >= 0.8 - epsilon:
             item["meets"] = "△"
         else:
             item["meets"] = "×"

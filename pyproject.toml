@@ -8,3 +8,7 @@ ignore = ["E501"]  # 日本語プロンプト文字列が長くなるため行�
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Form", "fastapi.Depends", "fastapi.Query"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

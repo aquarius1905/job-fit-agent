@@ -1,0 +1,125 @@
+from fastapi.testclient import TestClient
+
+from app import llm, storage
+from app.main import app
+
+client = TestClient(app)
+
+
+def test_index_without_skill_sheet(isolated_data_dir):
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "まだスキルシートが登録されていません" in res.text
+
+
+def test_skill_sheet_save_redirects_and_persists(isolated_data_dir):
+    res = client.post(
+        "/skill-sheet", data={"manual_text": "テスト経歴"}, follow_redirects=False
+    )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/skill-sheet?saved=1"
+
+    res = client.get("/skill-sheet?saved=1")
+    assert "テスト経歴" in res.text
+    assert "保存しました" in res.text
+
+
+def test_skill_sheet_ajax_success(isolated_data_dir):
+    res = client.post(
+        "/skill-sheet",
+        data={"manual_text": "Ajax保存テスト"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True, "skill_sheet_text": "Ajax保存テスト"}
+
+
+def test_skill_sheet_ajax_unsupported_file(isolated_data_dir):
+    res = client.post(
+        "/skill-sheet",
+        files={"file": ("resume.pdf", b"dummy", "application/pdf")},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 400
+    body = res.json()
+    assert body["ok"] is False
+    assert "対応していないファイル形式です" in body["error"]
+
+
+def test_work_style_ajax_save(isolated_data_dir):
+    res = client.post(
+        "/work-style",
+        data={"remote_options": ["フルリモート"], "rate_min": "3000"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True}
+    assert storage.load_work_style()["rate_min"] == "3000"
+
+
+def test_evaluate_without_skill_sheet_redirects(isolated_data_dir):
+    res = client.post(
+        "/evaluate", data={"job_posting_text": "求人票"}, follow_redirects=False
+    )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/skill-sheet"
+
+
+def test_evaluate_missing_posting_text_shows_error(isolated_data_dir):
+    client.post("/skill-sheet", data={"manual_text": "経歴"})
+    res = client.post("/evaluate", data={"job_posting_text": ""})
+    assert res.status_code == 200
+    assert "求人票のテキストを入力するかファイルを選択してください" in res.text
+
+
+def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch):
+    client.post("/skill-sheet", data={"manual_text": "経歴"})
+
+    fake_result = {
+        "fit_score": 42,
+        "fit_label": "要検討",
+        "required_skills": [],
+        "work_style_fit": [],
+        "concerns": [],
+        "questions_to_ask": [],
+        "application_letter": "応募文サンプル",
+    }
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: fake_result)
+
+    res = client.post(
+        "/evaluate", data={"job_title": "案件X", "job_posting_text": "求人票テキスト"}
+    )
+    assert res.status_code == 200
+    assert "42" in res.text
+    assert "応募文サンプル" in res.text
+
+    entries = storage.load_history()
+    assert len(entries) == 1
+    assert entries[0]["job_title"] == "案件X"
+
+
+def test_history_pagination(isolated_data_dir):
+    for i in range(15):
+        storage.append_history(f"案件{i}", "求人票", {"fit_score": i})
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert res.text.count('class="history-item"') == 10
+    assert "1 / 2" in res.text
+
+    res = client.get("/history?page=2")
+    assert res.text.count('class="history-item"') == 5
+    assert "2 / 2" in res.text
+
+    # 範囲外のページは最終ページにクランプされる
+    res = client.get("/history?page=99")
+    assert "2 / 2" in res.text
+
+
+def test_history_sort_by_score(isolated_data_dir):
+    storage.append_history("低スコア案件", "求人票", {"fit_score": 10})
+    storage.append_history("高スコア案件", "求人票", {"fit_score": 90})
+
+    res = client.get("/history?sort=score")
+    assert res.status_code == 200
+    assert res.text.index("高スコア案件") < res.text.index("低スコア案件")
