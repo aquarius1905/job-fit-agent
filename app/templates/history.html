@@ -33,7 +33,7 @@
       {{ ev.work_style_fit_table(e.evaluation.work_style_fit) }}
       {% endif %}
       <p><strong>懸念点:</strong></p>
-      {{ ev.concerns_list(e.evaluation.concerns) }}
+      {{ ev.concerns_list(e.evaluation.concerns, empty_text='特になし') }}
       {% if e.evaluation.questions_to_ask %}
       <p><strong>確認したいこと:</strong></p>
       {{ ev.questions_list(e.evaluation.questions_to_ask) }}

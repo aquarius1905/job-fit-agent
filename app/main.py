@@ -173,9 +173,15 @@ async def evaluate(
                 result = await run_in_threadpool(
                     llm.evaluate, skill_sheet, work_style_text, posting_text
                 )
-                storage.append_history(job_title or "(タイトル未入力)", posting_text, result)
             except Exception as e:  # noqa: BLE001
                 error = str(e)
+            else:
+                try:
+                    storage.append_history(
+                        job_title or "(タイトル未入力)", posting_text, result
+                    )
+                except Exception as e:  # noqa: BLE001
+                    error = f"判定結果は表示されていますが、履歴への保存に失敗しました: {e}"
 
     return templates.TemplateResponse(
         request,

@@ -213,7 +213,10 @@ def _enforce_experience_thresholds(required_skills: list[dict]) -> None:
     """required_years/actual_yearsが設定された項目のmeetsを、比率に基づき機械的に上書きする。"""
     for item in required_skills:
         required_years = item.get("required_years")
-        if not required_years:
+        if required_years is None:
+            continue
+        if required_years <= 0:
+            item["meets"] = "○"
             continue
         actual_years = item.get("actual_years") or 0
         ratio = actual_years / required_years

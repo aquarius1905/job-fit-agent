@@ -34,6 +34,13 @@ def test_enforce_experience_thresholds_missing_actual_years_treated_as_zero():
     assert skills[0]["meets"] == "×"
 
 
+def test_enforce_experience_thresholds_zero_required_years_is_always_met():
+    # required_years=0(経験不問)はNone(条件なし)と区別しつつ、0除算を起こさず○にする
+    skills = [{"required_years": 0, "actual_years": 0, "meets": "×"}]
+    _enforce_experience_thresholds(skills)
+    assert skills[0]["meets"] == "○"
+
+
 def test_compose_work_style_text_includes_all_sections():
     text = compose_work_style_text(
         {
