@@ -66,6 +66,30 @@ def test_sufficient_matching_years_are_credited():
     assert skill["meets"] == "○", skill["reason"]
 
 
+def test_or_condition_is_not_split_into_separate_must_items():
+    """「以下いずれか」のようなOR条件は1項目にまとめ、満たす選択肢が1つでもあれば○と判定すること。
+
+    実際にユーザーから「必須要件のOR条件を全部必須として判定してしまう」との
+    指摘を受け、選択肢ごとに分解せず1つのrequired_skills項目としてまとめる
+    ようプロンプトを修正した経緯がある。回帰検知のためのeval。
+    """
+    skill_sheet = "AWSでのインフラ構築・運用の実務経験が3年。GCP・Azureの実務経験はなし。"
+    job_posting = "【必須】以下いずれかの実務経験\n・AWS\n・GCP\n・Azure"
+
+    result = llm.evaluate(skill_sheet, "", job_posting)
+
+    cloud_items = [
+        s
+        for s in result["required_skills"]
+        if any(k in s["skill"] for k in ("AWS", "GCP", "Azure"))
+    ]
+    assert len(cloud_items) == 1, (
+        "OR条件が個別のMUST項目に分解されている: "
+        f"{result['required_skills']}"
+    )
+    assert cloud_items[0]["meets"] == "○", cloud_items[0]["reason"]
+
+
 def test_explicit_onsite_requirement_conflicts_with_full_remote_preference():
     """フルリモート希望と、求人票の明確な出社必須条件との不一致が検知されること。"""
     skill_sheet = "Pythonでのバックエンド開発経験5年。"
