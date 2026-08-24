@@ -38,6 +38,7 @@
             {% endfor %}
           </select>
         </label>
+        <span class="outcome-error" hidden>保存に失敗しました。もう一度お試しください。</span>
       </div>
       {% endif %}
       <p><strong>総合判定:</strong> {{ e.evaluation.fit_label }}</p>
@@ -69,9 +70,12 @@
 
 <script>
 document.querySelectorAll('.outcome-select').forEach(function (select) {
+  select.dataset.savedValue = select.value;
+
   select.addEventListener('change', function () {
     const entryId = select.dataset.entryId;
     const value = select.value;
+    const errorEl = select.closest('.outcome-control').querySelector('.outcome-error');
     const formData = new FormData();
     formData.append('outcome', value);
 
@@ -79,13 +83,20 @@ document.querySelectorAll('.outcome-select').forEach(function (select) {
       method: 'POST',
       headers: { 'X-Requested-With': 'fetch' },
       body: formData,
-    }).then(function (res) {
-      if (!res.ok) return;
-      const badge = select.closest('details').querySelector('.outcome-badge');
-      badge.textContent = value;
-      badge.hidden = !value;
-      badge.className = 'outcome-badge' + (value === '採用' ? ' accepted' : value ? ' rejected' : '');
-    });
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('save failed');
+        const badge = select.closest('details').querySelector('.outcome-badge');
+        badge.textContent = value;
+        badge.hidden = !value;
+        badge.className = 'outcome-badge' + (value === '採用' ? ' accepted' : value ? ' rejected' : '');
+        select.dataset.savedValue = value;
+        errorEl.hidden = true;
+      })
+      .catch(function () {
+        select.value = select.dataset.savedValue;
+        errorEl.hidden = false;
+      });
   });
 });
 </script>

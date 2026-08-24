@@ -230,6 +230,7 @@ button:hover:not(:disabled) { opacity: 0.9; }
 
 .outcome-control { margin-bottom: 16px; font-size: 14px; }
 .outcome-control select { margin-left: 8px; }
+.outcome-error { color: var(--ng); font-size: 12px; margin-left: 10px; }
 
 .sort-toggle {
   display: flex;

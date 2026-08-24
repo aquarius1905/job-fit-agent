@@ -212,6 +212,30 @@ def test_set_history_outcome_ajax(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == "採用"
 
 
+def test_set_history_outcome_returns_error_status_on_storage_failure(
+    isolated_data_dir, monkeypatch
+):
+    """保存に失敗した場合、非2xxを返すこと（フロント側のfetch().catch()で
+    エラー表示・選択欄のロールバックを発火させる引き金になる契約）。"""
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    entry_id = storage.load_history()[0]["id"]
+
+    def fail_update(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(storage, "update_history_outcome", fail_update)
+
+    error_client = TestClient(app, raise_server_exceptions=False)
+    res = error_client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "採用"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code >= 500
+    # 失敗しているので保存されていないこと
+    assert storage.load_history()[0]["outcome"] == ""
+
+
 def test_set_history_outcome_non_ajax_redirects(isolated_data_dir):
     storage.append_history("案件A", "求人票", {"fit_score": 50})
     entry_id = storage.load_history()[0]["id"]
