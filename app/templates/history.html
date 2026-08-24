@@ -22,10 +22,24 @@
   <details class="history-item">
     <summary>
       <span class="score-badge small">{{ e.evaluation.fit_score }}</span>
+      <span class="outcome-badge {{ 'accepted' if e.outcome == '採用' else 'rejected' if e.outcome else '' }}" {% if not e.outcome %}hidden{% endif %}>{{ e.outcome }}</span>
       <span class="hist-title">{{ e.job_title }}</span>
       <span class="hist-date">{{ e.timestamp | jst }}</span>
     </summary>
     <div class="history-body">
+      {% if e.id %}
+      <div class="outcome-control">
+        <label>
+          選考結果:
+          <select class="outcome-select" data-entry-id="{{ e.id }}">
+            <option value="" {% if not e.outcome %}selected{% endif %}>未定</option>
+            {% for opt in outcome_options %}
+            <option value="{{ opt }}" {% if e.outcome == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      {% endif %}
       <p><strong>総合判定:</strong> {{ e.evaluation.fit_label }}</p>
       {{ ev.required_skills_table(e.evaluation.required_skills) }}
       {% if e.evaluation.work_style_fit %}
@@ -52,5 +66,28 @@
   </nav>
   {% endif %}
 </section>
+
+<script>
+document.querySelectorAll('.outcome-select').forEach(function (select) {
+  select.addEventListener('change', function () {
+    const entryId = select.dataset.entryId;
+    const value = select.value;
+    const formData = new FormData();
+    formData.append('outcome', value);
+
+    fetch('/history/' + entryId + '/outcome', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
+      body: formData,
+    }).then(function (res) {
+      if (!res.ok) return;
+      const badge = select.closest('details').querySelector('.outcome-badge');
+      badge.textContent = value;
+      badge.hidden = !value;
+      badge.className = 'outcome-badge' + (value === '採用' ? ' accepted' : value ? ' rejected' : '');
+    });
+  });
+});
+</script>
 
 {% endblock %}

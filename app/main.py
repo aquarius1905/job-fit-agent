@@ -20,6 +20,7 @@ JST = ZoneInfo("Asia/Tokyo")
 RATE_OPTIONS = list(range(1000, 10001, 500))
 REMOTE_OPTIONS = ["フルリモート", "一部リモート", "常駐"]
 WEEKLY_DAYS_OPTIONS = ["週1日", "週2日", "週3日", "週4日", "週5日(フルタイム)"]
+OUTCOME_OPTIONS = ["書類選考で不採用", "商談で不採用", "採用"]
 
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -219,5 +220,14 @@ def history(request: Request, page: int = 1, sort: str = "date"):
             "page": page,
             "total_pages": total_pages,
             "sort": sort,
+            "outcome_options": OUTCOME_OPTIONS,
         },
     )
+
+
+@app.post("/history/{entry_id}/outcome")
+async def set_history_outcome(request: Request, entry_id: str, outcome: str = Form("")):
+    storage.update_history_outcome(entry_id, outcome)
+    if is_ajax(request):
+        return JSONResponse({"ok": True})
+    return RedirectResponse(url="/history", status_code=303)

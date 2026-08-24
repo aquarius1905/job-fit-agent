@@ -196,3 +196,41 @@ def test_history_sort_by_score(isolated_data_dir):
     res = client.get("/history?sort=score")
     assert res.status_code == 200
     assert res.text.index("高スコア案件") < res.text.index("低スコア案件")
+
+
+def test_set_history_outcome_ajax(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    entry_id = storage.load_history()[0]["id"]
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "採用"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True}
+    assert storage.load_history()[0]["outcome"] == "採用"
+
+
+def test_set_history_outcome_non_ajax_redirects(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    entry_id = storage.load_history()[0]["id"]
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "商談で不採用"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/history"
+    assert storage.load_history()[0]["outcome"] == "商談で不採用"
+
+
+def test_history_page_shows_outcome_badge(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    entry_id = storage.load_history()[0]["id"]
+    storage.update_history_outcome(entry_id, "採用")
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert "採用" in res.text
