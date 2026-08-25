@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -82,7 +84,24 @@ def update_history_outcome(entry_id: str, outcome: str) -> bool:
     if not found:
         return False
 
-    with HISTORY_PATH.open("w", encoding="utf-8") as f:
-        for entry in entries:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    _atomic_write_jsonl(entries)
     return True
+
+
+def _atomic_write_jsonl(entries: list[dict]) -> None:
+    """entriesを一時ファイルに書き出してからHISTORY_PATHへ置き換える。
+
+    直接HISTORY_PATHへ書き込むと、途中でプロセスが落ちた場合に
+    履歴ファイル全体が壊れる/失われる恐れがあるため、書き込みが
+    完全に終わってから（同一ディレクトリ内での）アトミックな
+    置き換えを行う。
+    """
+    fd, tmp_path = tempfile.mkstemp(dir=DATA_DIR, prefix=".history-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            for entry in entries:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        Path(tmp_path).replace(HISTORY_PATH)
+    except BaseException:
+        Path(tmp_path).unlink(missing_ok=True)
+        raise

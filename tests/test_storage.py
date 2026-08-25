@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from app import storage
 
 
@@ -55,3 +59,32 @@ def test_update_history_outcome(isolated_data_dir):
 def test_update_history_outcome_unknown_id_returns_false(isolated_data_dir):
     storage.append_history("案件A", "求人票A", {"fit_score": 50})
     assert storage.update_history_outcome("存在しないid", "採用") is False
+
+
+def test_update_history_outcome_leaves_original_file_intact_on_write_failure(
+    isolated_data_dir, monkeypatch
+):
+    """書き込み中に失敗しても、history.jsonl全体が壊れたり消えたりしないこと。"""
+    storage.append_history("案件A", "求人票A", {"fit_score": 50})
+    storage.append_history("案件B", "求人票B", {"fit_score": 80})
+    original_content = storage.HISTORY_PATH.read_text(encoding="utf-8")
+    entry_id = storage.load_history()[0]["id"]  # 案件B
+
+    real_dumps = json.dumps
+    call_count = {"n": 0}
+
+    def flaky_dumps(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 2:  # 1件目の書き込みは成功、2件目で書き込み失敗を模擬
+            raise ValueError("boom")
+        return real_dumps(*args, **kwargs)
+
+    monkeypatch.setattr(json, "dumps", flaky_dumps)
+
+    with pytest.raises(ValueError):
+        storage.update_history_outcome(entry_id, "採用")
+
+    # 元のファイルは書き込み失敗前のまま残っている（壊れていない）
+    assert storage.HISTORY_PATH.read_text(encoding="utf-8") == original_content
+    # 一時ファイルも残っていない
+    assert list(storage.DATA_DIR.glob(".history-*.tmp")) == []
