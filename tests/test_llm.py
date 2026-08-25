@@ -1,44 +1,31 @@
+import pytest
+
 from app.llm import _enforce_experience_thresholds, compose_work_style_text
 
 
-def test_enforce_experience_thresholds_full_match():
-    skills = [{"required_years": 5, "actual_years": 5, "meets": "×"}]
+@pytest.mark.parametrize(
+    ("required_years", "actual_years", "initial_meets", "expected_meets"),
+    [
+        pytest.param(5, 5, "×", "○", id="full_match"),
+        pytest.param(7, 5.6, "×", "△", id="exactly_80_percent_boundary"),
+        # 実際に発生したバグ: モデルが57%(=実務4年/要件7年)と自ら計算しつつ
+        # 「経験の幅がある」等を理由に△と自己申告してくるケース。
+        # アプリ側の比率計算が必ず優先されなければならない。
+        pytest.param(7, 4, "△", "×", id="below_80_percent_overrides_model"),
+        pytest.param(None, None, "○", "○", id="no_year_requirement_untouched"),
+        pytest.param(3, None, "○", "×", id="missing_actual_years_treated_as_zero"),
+        # required_years=0(経験不問)はNone(条件なし)と区別しつつ、0除算を起こさず○にする
+        pytest.param(0, 0, "×", "○", id="zero_required_years_always_met"),
+    ],
+)
+def test_enforce_experience_thresholds(
+    required_years, actual_years, initial_meets, expected_meets
+):
+    skills = [
+        {"required_years": required_years, "actual_years": actual_years, "meets": initial_meets}
+    ]
     _enforce_experience_thresholds(skills)
-    assert skills[0]["meets"] == "○"
-
-
-def test_enforce_experience_thresholds_at_80_percent_boundary():
-    skills = [{"required_years": 7, "actual_years": 5.6, "meets": "×"}]
-    _enforce_experience_thresholds(skills)
-    assert skills[0]["meets"] == "△"
-
-
-def test_enforce_experience_thresholds_below_80_percent_overrides_model():
-    # 実際に発生したバグ: モデルが57%(=実務4年/要件7年)と自ら計算しつつ
-    # 「経験の幅がある」等を理由に△と自己申告してくるケース。
-    # アプリ側の比率計算が必ず優先されなければならない。
-    skills = [{"required_years": 7, "actual_years": 4, "meets": "△"}]
-    _enforce_experience_thresholds(skills)
-    assert skills[0]["meets"] == "×"
-
-
-def test_enforce_experience_thresholds_no_year_requirement_is_untouched():
-    skills = [{"required_years": None, "actual_years": None, "meets": "○"}]
-    _enforce_experience_thresholds(skills)
-    assert skills[0]["meets"] == "○"
-
-
-def test_enforce_experience_thresholds_missing_actual_years_treated_as_zero():
-    skills = [{"required_years": 3, "meets": "○"}]
-    _enforce_experience_thresholds(skills)
-    assert skills[0]["meets"] == "×"
-
-
-def test_enforce_experience_thresholds_zero_required_years_is_always_met():
-    # required_years=0(経験不問)はNone(条件なし)と区別しつつ、0除算を起こさず○にする
-    skills = [{"required_years": 0, "actual_years": 0, "meets": "×"}]
-    _enforce_experience_thresholds(skills)
-    assert skills[0]["meets"] == "○"
+    assert skills[0]["meets"] == expected_meets
 
 
 def test_compose_work_style_text_includes_all_sections():

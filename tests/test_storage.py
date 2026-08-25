@@ -5,6 +5,13 @@ import pytest
 from app import storage
 
 
+@pytest.fixture
+def two_history_entries(isolated_data_dir):
+    """案件A・案件Bの2件を追加する（案件Bが新しい）。"""
+    storage.append_history("案件A", "求人票A", {"fit_score": 50})
+    storage.append_history("案件B", "求人票B", {"fit_score": 80})
+
+
 def test_skill_sheet_roundtrip(isolated_data_dir):
     assert storage.load_skill_sheet() is None
     storage.save_skill_sheet("経歴テキスト")
@@ -17,11 +24,11 @@ def test_work_style_roundtrip(isolated_data_dir):
     assert storage.load_work_style() == {"rate_min": "1000"}
 
 
-def test_history_append_and_load_order(isolated_data_dir):
+def test_load_history_empty_when_no_data(isolated_data_dir):
     assert storage.load_history() == []
-    storage.append_history("案件A", "求人票A", {"fit_score": 50})
-    storage.append_history("案件B", "求人票B", {"fit_score": 80})
 
+
+def test_history_append_and_load_order(two_history_entries):
     entries = storage.load_history()
     assert len(entries) == 2
     # 新しい順(降順)で返る
@@ -30,19 +37,14 @@ def test_history_append_and_load_order(isolated_data_dir):
     assert entries[0]["evaluation"]["fit_score"] == 80
 
 
-def test_append_history_assigns_unique_id_and_empty_outcome(isolated_data_dir):
-    storage.append_history("案件A", "求人票A", {"fit_score": 50})
-    storage.append_history("案件B", "求人票B", {"fit_score": 80})
-
+def test_append_history_assigns_unique_id_and_empty_outcome(two_history_entries):
     entries = storage.load_history()
     assert entries[0]["outcome"] == ""
     assert entries[1]["outcome"] == ""
     assert entries[0]["id"] != entries[1]["id"]
 
 
-def test_update_history_outcome(isolated_data_dir):
-    storage.append_history("案件A", "求人票A", {"fit_score": 50})
-    storage.append_history("案件B", "求人票B", {"fit_score": 80})
+def test_update_history_outcome(two_history_entries):
     entry_id = storage.load_history()[0]["id"]  # 案件B
 
     updated = storage.update_history_outcome(entry_id, "採用")
@@ -56,17 +58,14 @@ def test_update_history_outcome(isolated_data_dir):
     assert other["outcome"] == ""
 
 
-def test_update_history_outcome_unknown_id_returns_false(isolated_data_dir):
-    storage.append_history("案件A", "求人票A", {"fit_score": 50})
+def test_update_history_outcome_unknown_id_returns_false(history_entry_id):
     assert storage.update_history_outcome("存在しないid", "採用") is False
 
 
 def test_update_history_outcome_leaves_original_file_intact_on_write_failure(
-    isolated_data_dir, monkeypatch
+    two_history_entries, monkeypatch
 ):
     """書き込み中に失敗しても、history.jsonl全体が壊れたり消えたりしないこと。"""
-    storage.append_history("案件A", "求人票A", {"fit_score": 50})
-    storage.append_history("案件B", "求人票B", {"fit_score": 80})
     original_content = storage.HISTORY_PATH.read_text(encoding="utf-8")
     entry_id = storage.load_history()[0]["id"]  # 案件B
 

@@ -94,19 +94,9 @@ def test_skill_sheet_corrupt_xlsx_shows_error_instead_of_500(isolated_data_dir):
     assert "読み込めませんでした" in body["error"]
 
 
-def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch):
+def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch, make_evaluation):
     client.post("/skill-sheet", data={"manual_text": "経歴"})
-
-    fake_result = {
-        "fit_score": 42,
-        "fit_label": "要検討",
-        "required_skills": [],
-        "work_style_fit": [],
-        "concerns": [],
-        "questions_to_ask": [],
-        "application_letter": "応募文サンプル",
-    }
-    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: fake_result)
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
 
     res = client.post(
         "/evaluate", data={"job_title": "案件X", "job_posting_text": "求人票テキスト"}
@@ -121,20 +111,10 @@ def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch):
 
 
 def test_evaluate_shows_distinct_error_when_history_save_fails(
-    isolated_data_dir, monkeypatch
+    isolated_data_dir, monkeypatch, make_evaluation
 ):
     client.post("/skill-sheet", data={"manual_text": "経歴"})
-
-    fake_result = {
-        "fit_score": 42,
-        "fit_label": "要検討",
-        "required_skills": [],
-        "work_style_fit": [],
-        "concerns": [],
-        "questions_to_ask": [],
-        "application_letter": "応募文サンプル",
-    }
-    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: fake_result)
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
 
     def fail_append_history(*a, **k):
         raise OSError("disk full")
@@ -169,19 +149,11 @@ def test_history_pagination(isolated_data_dir):
     assert "2 / 2" in res.text
 
 
-def test_history_entry_with_no_concerns_shows_fallback_text(isolated_data_dir):
+def test_history_entry_with_no_concerns_shows_fallback_text(isolated_data_dir, make_evaluation):
     storage.append_history(
         "懸念なし案件",
         "求人票",
-        {
-            "fit_score": 90,
-            "fit_label": "応募推奨",
-            "required_skills": [],
-            "work_style_fit": [],
-            "concerns": [],
-            "questions_to_ask": [],
-            "application_letter": "応募文",
-        },
+        make_evaluation(fit_score=90, fit_label="応募推奨", application_letter="応募文"),
     )
 
     res = client.get("/history")
@@ -198,9 +170,8 @@ def test_history_sort_by_score(isolated_data_dir):
     assert res.text.index("高スコア案件") < res.text.index("低スコア案件")
 
 
-def test_set_history_outcome_ajax(isolated_data_dir):
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-    entry_id = storage.load_history()[0]["id"]
+def test_set_history_outcome_ajax(history_entry_id):
+    entry_id = history_entry_id
 
     res = client.post(
         f"/history/{entry_id}/outcome",
@@ -212,9 +183,7 @@ def test_set_history_outcome_ajax(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == "採用"
 
 
-def test_set_history_outcome_unknown_entry_id_returns_404(isolated_data_dir):
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-
+def test_set_history_outcome_unknown_entry_id_returns_404(history_entry_id):
     res = client.post(
         "/history/存在しないid/outcome",
         data={"outcome": "採用"},
@@ -226,9 +195,8 @@ def test_set_history_outcome_unknown_entry_id_returns_404(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == ""
 
 
-def test_set_history_outcome_rejects_unknown_value(isolated_data_dir):
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-    entry_id = storage.load_history()[0]["id"]
+def test_set_history_outcome_rejects_unknown_value(history_entry_id):
+    entry_id = history_entry_id
 
     res = client.post(
         f"/history/{entry_id}/outcome",
@@ -241,9 +209,8 @@ def test_set_history_outcome_rejects_unknown_value(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == ""
 
 
-def test_set_history_outcome_empty_value_clears_outcome(isolated_data_dir):
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-    entry_id = storage.load_history()[0]["id"]
+def test_set_history_outcome_empty_value_clears_outcome(history_entry_id):
+    entry_id = history_entry_id
     storage.update_history_outcome(entry_id, "採用")
 
     res = client.post(
@@ -256,12 +223,11 @@ def test_set_history_outcome_empty_value_clears_outcome(isolated_data_dir):
 
 
 def test_set_history_outcome_returns_error_status_on_storage_failure(
-    isolated_data_dir, monkeypatch
+    history_entry_id, monkeypatch
 ):
     """保存に失敗した場合、非2xxを返すこと（フロント側のfetch().catch()で
     エラー表示・選択欄のロールバックを発火させる引き金になる契約）。"""
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-    entry_id = storage.load_history()[0]["id"]
+    entry_id = history_entry_id
 
     def fail_update(*a, **k):
         raise OSError("disk full")
@@ -279,9 +245,8 @@ def test_set_history_outcome_returns_error_status_on_storage_failure(
     assert storage.load_history()[0]["outcome"] == ""
 
 
-def test_set_history_outcome_non_ajax_redirects(isolated_data_dir):
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-    entry_id = storage.load_history()[0]["id"]
+def test_set_history_outcome_non_ajax_redirects(history_entry_id):
+    entry_id = history_entry_id
 
     res = client.post(
         f"/history/{entry_id}/outcome",
@@ -293,10 +258,8 @@ def test_set_history_outcome_non_ajax_redirects(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == "商談で不採用"
 
 
-def test_history_page_shows_outcome_badge(isolated_data_dir):
-    storage.append_history("案件A", "求人票", {"fit_score": 50})
-    entry_id = storage.load_history()[0]["id"]
-    storage.update_history_outcome(entry_id, "採用")
+def test_history_page_shows_outcome_badge(history_entry_id):
+    storage.update_history_outcome(history_entry_id, "採用")
 
     res = client.get("/history")
     assert res.status_code == 200

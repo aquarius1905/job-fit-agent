@@ -16,14 +16,10 @@ def test_extract_text_unsupported_extension():
         extract_text("resume.pdf", b"dummy")
 
 
-def test_extract_text_corrupt_xlsx_raises_value_error():
+@pytest.mark.parametrize("filename", ["skill.xlsx", "skill.docx"])
+def test_extract_text_corrupt_file_raises_value_error(filename):
     with pytest.raises(ValueError, match="読み込めませんでした"):
-        extract_text("skill.xlsx", b"not a real zip file")
-
-
-def test_extract_text_corrupt_docx_raises_value_error():
-    with pytest.raises(ValueError, match="読み込めませんでした"):
-        extract_text("skill.docx", b"not a real zip file")
+        extract_text(filename, b"not a real zip file")
 
 
 def test_extract_text_xlsx():
