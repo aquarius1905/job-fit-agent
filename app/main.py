@@ -232,7 +232,14 @@ async def set_history_outcome(request: Request, entry_id: str, outcome: str = Fo
             return JSONResponse({"ok": False, "error": "不正な選考結果です"}, status_code=400)
         return RedirectResponse(url="/history", status_code=303)
 
-    storage.update_history_outcome(entry_id, outcome)
+    updated = storage.update_history_outcome(entry_id, outcome)
+    if not updated:
+        if is_ajax(request):
+            return JSONResponse(
+                {"ok": False, "error": "該当する履歴が見つかりません"}, status_code=404
+            )
+        return RedirectResponse(url="/history", status_code=303)
+
     if is_ajax(request):
         return JSONResponse({"ok": True})
     return RedirectResponse(url="/history", status_code=303)

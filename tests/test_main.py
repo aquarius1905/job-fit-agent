@@ -212,6 +212,20 @@ def test_set_history_outcome_ajax(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == "採用"
 
 
+def test_set_history_outcome_unknown_entry_id_returns_404(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+
+    res = client.post(
+        "/history/存在しないid/outcome",
+        data={"outcome": "採用"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 404
+    assert res.json()["ok"] is False
+    # 既存エントリには影響しない
+    assert storage.load_history()[0]["outcome"] == ""
+
+
 def test_set_history_outcome_rejects_unknown_value(isolated_data_dir):
     storage.append_history("案件A", "求人票", {"fit_score": 50})
     entry_id = storage.load_history()[0]["id"]
