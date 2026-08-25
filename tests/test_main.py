@@ -212,6 +212,35 @@ def test_set_history_outcome_ajax(isolated_data_dir):
     assert storage.load_history()[0]["outcome"] == "採用"
 
 
+def test_set_history_outcome_rejects_unknown_value(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    entry_id = storage.load_history()[0]["id"]
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "内定辞退"},  # OUTCOME_OPTIONSに存在しない値
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 400
+    assert res.json()["ok"] is False
+    # 不正な値は保存されない
+    assert storage.load_history()[0]["outcome"] == ""
+
+
+def test_set_history_outcome_empty_value_clears_outcome(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    entry_id = storage.load_history()[0]["id"]
+    storage.update_history_outcome(entry_id, "採用")
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": ""},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert storage.load_history()[0]["outcome"] == ""
+
+
 def test_set_history_outcome_returns_error_status_on_storage_failure(
     isolated_data_dir, monkeypatch
 ):
