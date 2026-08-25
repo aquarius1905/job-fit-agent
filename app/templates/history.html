@@ -6,6 +6,15 @@
 <section class="card">
   <h1>判定履歴</h1>
 
+  <div class="rate-estimate">
+    {% if rate.available %}
+    <p><strong>推定適正単価（時給）:</strong> {{ '{:,}'.format(rate.hourly_min) }}円 〜 {{ '{:,}'.format(rate.hourly_max) }}円</p>
+    <p class="muted">週5日フル稼働換算（月額）: {{ '{:,}'.format(rate.monthly_min) }}円 〜 {{ '{:,}'.format(rate.monthly_max) }}円 ／ 適合度{{ rate_min_fit_score }}以上かつ単価記載のある求人{{ rate.sample_count }}件から算出</p>
+    {% else %}
+    <p class="muted">推定適正単価: データ不足のため未算出（適合度{{ rate_min_fit_score }}以上かつ単価記載のある求人が{{ rate_min_samples }}件必要、現在{{ rate.sample_count }}件）</p>
+    {% endif %}
+  </div>
+
   {% if entries or total_pages > 1 %}
   <div class="sort-toggle">
     <span class="muted">並び順:</span>

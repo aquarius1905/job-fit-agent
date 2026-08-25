@@ -161,6 +161,31 @@ def test_history_entry_with_no_concerns_shows_fallback_text(isolated_data_dir, m
     assert "特になし" in res.text
 
 
+def test_history_shows_insufficient_data_message_by_default(isolated_data_dir):
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert "データ不足のため未算出" in res.text
+
+
+def test_history_shows_rate_estimate_when_enough_samples(isolated_data_dir, make_evaluation):
+    for i in range(3):
+        storage.append_history(
+            f"案件{i}",
+            "求人票",
+            make_evaluation(
+                fit_score=80,
+                posted_rate={"stated_text": "70万円/月", "hourly_min": 4000, "hourly_max": 4500},
+            ),
+        )
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert "データ不足のため未算出" not in res.text
+    assert "推定適正単価" in res.text
+    assert "4,000円" in res.text
+    assert "4,500円" in res.text
+
+
 def test_history_sort_by_score(isolated_data_dir):
     storage.append_history("低スコア案件", "求人票", {"fit_score": 10})
     storage.append_history("高スコア案件", "求人票", {"fit_score": 90})

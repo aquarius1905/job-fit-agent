@@ -109,6 +109,31 @@ _EVALUATION_TOOL = {
                 "type": "string",
                 "description": "この求人にそのまま送れる日本語の応募文（完成形、追記不要なレベル）",
             },
+            "posted_rate": {
+                "type": "object",
+                "description": "求人票に記載されている単価情報。記載がなければ全てnull",
+                "properties": {
+                    "stated_text": {
+                        "type": ["string", "null"],
+                        "description": (
+                            "求人票に書かれている単価表記そのまま"
+                            "（例: 「60万〜80万円/月」「600〜900万円/年」）。記載がなければnull"
+                        ),
+                    },
+                    "hourly_min": {
+                        "type": ["number", "null"],
+                        "description": (
+                            "時給換算した単価の下限（円）。月額は160時間、年額は12で月額換算してから160時間、"
+                            "日額は8時間で割って換算する。単一額のみの記載ならhourly_maxと同じ値。記載がなければnull"
+                        ),
+                    },
+                    "hourly_max": {
+                        "type": ["number", "null"],
+                        "description": "時給換算した単価の上限（円）。換算方法はhourly_minと同じ。記載がなければnull",
+                    },
+                },
+                "required": ["stated_text", "hourly_min", "hourly_max"],
+            },
         },
         "required": [
             "fit_score",
@@ -118,6 +143,7 @@ _EVALUATION_TOOL = {
             "concerns",
             "questions_to_ask",
             "application_letter",
+            "posted_rate",
         ],
     },
 }
@@ -139,6 +165,7 @@ _SYSTEM_PROMPT = """\
 - 確認質問(questions_to_ask)には、懸念点のうち求人票の記載だけでは判断がつかないもの（例: フルリモート希望なのに「原則リモート、必要に応じて出社」等の曖昧な条件）について、案件担当者に直接聞けば解消しうる具体的な質問を作成する。「出社の頻度は？」のような曖昧な聞き方ではなく、「月にどの程度の出社が発生しますか？」「出社が必要な場合、最寄り駅・エリアはどこですか？」のように、相手がそのまま回答できる粒度で書く。働き方の希望条件との不一致がなければ無理に作らず、空配列でよい。
 - 総合適合度(fit_score)は技術面のスキル充足だけでなく、働き方の希望条件との合致度も加味して判定する。働き方の希望条件で重大な不一致（必須級の希望に反する条件）がある場合は、技術面が満たされていてもスコアを大きく下げること。
 - 応募文(application_letter)は、スキルシートの中から本案件に関連が強い経験を選んで簡潔にアピールし、丁寧だが定型文っぽくない日本語で書く。誇張や虚偽の経験を書かない。
+- 単価(posted_rate)は、求人票に金額の記載があればstated_textにそのままの表記を書き、hourly_min/hourly_maxに時給（円）換算した数値を入れる。月額は160時間、年額はまず12で割って月額にしてから160時間、日額は8時間で換算する。記載が単一額の場合はhourly_min=hourly_maxとする。求人票に金額の記載が一切なければ、stated_text/hourly_min/hourly_maxはすべてnullにする。
 """
 
 

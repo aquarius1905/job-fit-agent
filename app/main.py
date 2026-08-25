@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
-from app import llm, parsing, storage
+from app import llm, parsing, rate_estimate, storage
 
 load_dotenv()
 
@@ -212,6 +212,7 @@ def history(request: Request, page: int = 1, sort: str = "date"):
     page = min(max(page, 1), total_pages)
     start = (page - 1) * HISTORY_PAGE_SIZE
     entries = all_entries[start : start + HISTORY_PAGE_SIZE]
+    rate = rate_estimate.estimate_hourly_rate(all_entries)
     return templates.TemplateResponse(
         request,
         "history.html",
@@ -221,6 +222,9 @@ def history(request: Request, page: int = 1, sort: str = "date"):
             "total_pages": total_pages,
             "sort": sort,
             "outcome_options": OUTCOME_OPTIONS,
+            "rate": rate,
+            "rate_min_fit_score": rate_estimate.MIN_FIT_SCORE,
+            "rate_min_samples": rate_estimate.MIN_SAMPLES,
         },
     )
 
