@@ -40,6 +40,7 @@ def test_history_append_and_load_order(two_history_entries):
 def test_append_history_assigns_unique_id_and_empty_outcome(two_history_entries):
     entries = storage.load_history()
     assert entries[0]["outcome"] == ""
+    assert entries[0]["outcome_reason"] == ""
     assert entries[1]["outcome"] == ""
     assert entries[0]["id"] != entries[1]["id"]
 
@@ -56,6 +57,26 @@ def test_update_history_outcome(two_history_entries):
     # 他のエントリは影響を受けない
     other = [e for e in entries if e["id"] != entry_id][0]
     assert other["outcome"] == ""
+
+
+def test_update_history_outcome_saves_reason(two_history_entries):
+    entry_id = storage.load_history()[0]["id"]  # 案件B
+
+    storage.update_history_outcome(entry_id, "商談で不採用", "他候補者との比較の上、お見送り")
+
+    entries = storage.load_history()
+    by_id = {e["id"]: e for e in entries}
+    assert by_id[entry_id]["outcome_reason"] == "他候補者との比較の上、お見送り"
+
+
+def test_update_history_outcome_defaults_reason_to_empty(two_history_entries):
+    entry_id = storage.load_history()[0]["id"]  # 案件B
+
+    storage.update_history_outcome(entry_id, "採用")
+
+    entries = storage.load_history()
+    by_id = {e["id"]: e for e in entries}
+    assert by_id[entry_id]["outcome_reason"] == ""
 
 
 def test_update_history_outcome_unknown_id_returns_false(history_entry_id):

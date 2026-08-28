@@ -230,13 +230,15 @@ def history(request: Request, page: int = 1, sort: str = "date"):
 
 
 @app.post("/history/{entry_id}/outcome")
-async def set_history_outcome(request: Request, entry_id: str, outcome: str = Form("")):
+async def set_history_outcome(
+    request: Request, entry_id: str, outcome: str = Form(""), reason: str = Form("")
+):
     if outcome and outcome not in OUTCOME_OPTIONS:
         if is_ajax(request):
             return JSONResponse({"ok": False, "error": "不正な選考結果です"}, status_code=400)
         return RedirectResponse(url="/history", status_code=303)
 
-    updated = storage.update_history_outcome(entry_id, outcome)
+    updated = storage.update_history_outcome(entry_id, outcome, reason)
     if not updated:
         if is_ajax(request):
             return JSONResponse(

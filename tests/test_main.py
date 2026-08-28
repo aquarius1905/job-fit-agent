@@ -283,6 +283,26 @@ def test_set_history_outcome_non_ajax_redirects(history_entry_id):
     assert storage.load_history()[0]["outcome"] == "商談で不採用"
 
 
+def test_set_history_outcome_saves_reason(history_entry_id):
+    entry_id = history_entry_id
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "商談で不採用", "reason": "他候補者との比較の上、お見送り"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert storage.load_history()[0]["outcome_reason"] == "他候補者との比較の上、お見送り"
+
+
+def test_history_page_shows_saved_reason(history_entry_id):
+    storage.update_history_outcome(history_entry_id, "商談で不採用", "他候補者との比較の上、お見送り")
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert "他候補者との比較の上、お見送り" in res.text
+
+
 def test_history_page_shows_outcome_badge(history_entry_id):
     storage.update_history_outcome(history_entry_id, "採用")
 

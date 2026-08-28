@@ -228,8 +228,9 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .outcome-badge.accepted { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
 .outcome-badge.rejected { background: var(--ng-bg); color: var(--ng); border-color: transparent; }
 
-.outcome-control { margin-bottom: 16px; font-size: 14px; }
+.outcome-control { margin-bottom: 16px; font-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .outcome-control select { margin-left: 8px; }
+.outcome-control .reason-input { margin-left: 8px; width: 240px; }
 .outcome-error { color: var(--ng); font-size: 12px; margin-left: 10px; }
 
 .rate-estimate {

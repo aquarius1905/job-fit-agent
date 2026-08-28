@@ -37,15 +37,19 @@
     </summary>
     <div class="history-body">
       {% if e.id %}
-      <div class="outcome-control">
+      <div class="outcome-control" data-entry-id="{{ e.id }}">
         <label>
           選考結果:
-          <select class="outcome-select" data-entry-id="{{ e.id }}">
+          <select class="outcome-select">
             <option value="" {% if not e.outcome %}selected{% endif %}>未定</option>
             {% for opt in outcome_options %}
             <option value="{{ opt }}" {% if e.outcome == opt %}selected{% endif %}>{{ opt }}</option>
             {% endfor %}
           </select>
+        </label>
+        <label>
+          理由:
+          <input type="text" class="reason-input" placeholder="任意（例: 他候補者との比較）" value="{{ e.outcome_reason or '' }}">
         </label>
         <span class="outcome-error" hidden>保存に失敗しました。もう一度お試しください。</span>
       </div>
@@ -78,15 +82,21 @@
 </section>
 
 <script>
-document.querySelectorAll('.outcome-select').forEach(function (select) {
-  select.dataset.savedValue = select.value;
+document.querySelectorAll('.outcome-control').forEach(function (control) {
+  const entryId = control.dataset.entryId;
+  const select = control.querySelector('.outcome-select');
+  const reasonInput = control.querySelector('.reason-input');
+  const errorEl = control.querySelector('.outcome-error');
 
-  select.addEventListener('change', function () {
-    const entryId = select.dataset.entryId;
-    const value = select.value;
-    const errorEl = select.closest('.outcome-control').querySelector('.outcome-error');
+  select.dataset.savedValue = select.value;
+  reasonInput.dataset.savedValue = reasonInput.value;
+
+  function save() {
+    const outcome = select.value;
+    const reason = reasonInput.value;
     const formData = new FormData();
-    formData.append('outcome', value);
+    formData.append('outcome', outcome);
+    formData.append('reason', reason);
 
     fetch('/history/' + entryId + '/outcome', {
       method: 'POST',
@@ -95,17 +105,24 @@ document.querySelectorAll('.outcome-select').forEach(function (select) {
     })
       .then(function (res) {
         if (!res.ok) throw new Error('save failed');
-        const badge = select.closest('details').querySelector('.outcome-badge');
-        badge.textContent = value;
-        badge.hidden = !value;
-        badge.className = 'outcome-badge' + (value === '採用' ? ' accepted' : value ? ' rejected' : '');
-        select.dataset.savedValue = value;
+        const badge = control.closest('details').querySelector('.outcome-badge');
+        badge.textContent = outcome;
+        badge.hidden = !outcome;
+        badge.className = 'outcome-badge' + (outcome === '採用' ? ' accepted' : outcome ? ' rejected' : '');
+        select.dataset.savedValue = outcome;
+        reasonInput.dataset.savedValue = reason;
         errorEl.hidden = true;
       })
       .catch(function () {
         select.value = select.dataset.savedValue;
+        reasonInput.value = reasonInput.dataset.savedValue;
         errorEl.hidden = false;
       });
+  }
+
+  select.addEventListener('change', save);
+  reasonInput.addEventListener('blur', function () {
+    if (reasonInput.value !== reasonInput.dataset.savedValue) save();
   });
 });
 </script>
