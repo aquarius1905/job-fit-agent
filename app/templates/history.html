@@ -91,38 +91,47 @@ document.querySelectorAll('.outcome-control').forEach(function (control) {
   select.dataset.savedValue = select.value;
   reasonInput.dataset.savedValue = reasonInput.value;
 
-  function save() {
-    const outcome = select.value;
-    const reason = reasonInput.value;
-    const formData = new FormData();
-    formData.append('outcome', outcome);
-    formData.append('reason', reason);
+  // 保存は直列化する（同時に2件飛ばさない）。各リクエストは実行時点の最新の
+  // select/reason値を読むため、後に積まれたリクエストが常に最新の状態を送る。
+  let chain = Promise.resolve();
 
-    fetch('/history/' + entryId + '/outcome', {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'fetch' },
-      body: formData,
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error('save failed');
-        const badge = control.closest('details').querySelector('.outcome-badge');
-        badge.textContent = outcome;
-        badge.hidden = !outcome;
-        badge.className = 'outcome-badge' + (outcome === '採用' ? ' accepted' : outcome ? ' rejected' : '');
-        select.dataset.savedValue = outcome;
-        reasonInput.dataset.savedValue = reason;
-        errorEl.hidden = true;
+  function queueSave(triggerEl) {
+    chain = chain.then(function () {
+      const outcome = select.value;
+      const reason = reasonInput.value;
+      const formData = new FormData();
+      formData.append('outcome', outcome);
+      formData.append('reason', reason);
+
+      return fetch('/history/' + entryId + '/outcome', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: formData,
       })
-      .catch(function () {
-        select.value = select.dataset.savedValue;
-        reasonInput.value = reasonInput.dataset.savedValue;
-        errorEl.hidden = false;
-      });
+        .then(function (res) {
+          if (!res.ok) throw new Error('save failed');
+          const badge = control.closest('details').querySelector('.outcome-badge');
+          badge.textContent = outcome;
+          badge.hidden = !outcome;
+          badge.className = 'outcome-badge' + (outcome === '採用' ? ' accepted' : outcome ? ' rejected' : '');
+          select.dataset.savedValue = outcome;
+          reasonInput.dataset.savedValue = reason;
+          errorEl.hidden = true;
+        })
+        .catch(function () {
+          // 失敗した保存を引き起こした側のフィールドだけ戻す。もう一方が
+          // 未送信の入力中の値を持っている場合、それを消してしまわないため。
+          triggerEl.value = triggerEl.dataset.savedValue;
+          errorEl.hidden = false;
+        });
+    });
   }
 
-  select.addEventListener('change', save);
+  select.addEventListener('change', function () {
+    queueSave(select);
+  });
   reasonInput.addEventListener('blur', function () {
-    if (reasonInput.value !== reasonInput.dataset.savedValue) save();
+    if (reasonInput.value !== reasonInput.dataset.savedValue) queueSave(reasonInput);
   });
 });
 </script>
