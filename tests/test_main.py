@@ -200,18 +200,18 @@ def test_set_history_outcome_ajax(history_entry_id):
 
     res = client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "採用"},
+        data={"outcome": "オファー"},
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 200
     assert res.json() == {"ok": True}
-    assert storage.load_history()[0]["outcome"] == "採用"
+    assert storage.load_history()[0]["outcome"] == "オファー"
 
 
 def test_set_history_outcome_unknown_entry_id_returns_404(history_entry_id):
     res = client.post(
         "/history/存在しないid/outcome",
-        data={"outcome": "採用"},
+        data={"outcome": "オファー"},
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 404
@@ -225,7 +225,7 @@ def test_set_history_outcome_rejects_unknown_value(history_entry_id):
 
     res = client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "オファー辞退"},  # OUTCOME_OPTIONSに存在しない値
+        data={"outcome": "検討中"},  # OUTCOME_OPTIONSに存在しない値
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 400
@@ -239,16 +239,16 @@ def test_set_history_outcome_accepts_offer_declined(history_entry_id):
 
     res = client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "内定辞退"},
+        data={"outcome": "オファー辞退"},
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 200
-    assert storage.load_history()[0]["outcome"] == "内定辞退"
+    assert storage.load_history()[0]["outcome"] == "オファー辞退"
 
 
 def test_set_history_outcome_empty_value_clears_outcome(history_entry_id):
     entry_id = history_entry_id
-    storage.update_history_outcome(entry_id, "採用")
+    storage.update_history_outcome(entry_id, "オファー")
 
     res = client.post(
         f"/history/{entry_id}/outcome",
@@ -274,7 +274,7 @@ def test_set_history_outcome_returns_error_status_on_storage_failure(
     error_client = TestClient(app, raise_server_exceptions=False)
     res = error_client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "採用"},
+        data={"outcome": "オファー"},
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code >= 500
@@ -287,12 +287,12 @@ def test_set_history_outcome_non_ajax_redirects(history_entry_id):
 
     res = client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "商談で不採用"},
+        data={"outcome": "商談で見送り"},
         follow_redirects=False,
     )
     assert res.status_code == 303
     assert res.headers["location"] == "/history"
-    assert storage.load_history()[0]["outcome"] == "商談で不採用"
+    assert storage.load_history()[0]["outcome"] == "商談で見送り"
 
 
 def test_set_history_outcome_saves_reason(history_entry_id):
@@ -300,7 +300,7 @@ def test_set_history_outcome_saves_reason(history_entry_id):
 
     res = client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "商談で不採用", "reason": "他候補者との比較の上、お見送り"},
+        data={"outcome": "商談で見送り", "reason": "他候補者との比較の上、お見送り"},
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 200
@@ -308,7 +308,7 @@ def test_set_history_outcome_saves_reason(history_entry_id):
 
 
 def test_history_page_shows_saved_reason(history_entry_id):
-    storage.update_history_outcome(history_entry_id, "商談で不採用", "他候補者との比較の上、お見送り")
+    storage.update_history_outcome(history_entry_id, "商談で見送り", "他候補者との比較の上、お見送り")
 
     res = client.get("/history")
     assert res.status_code == 200
@@ -316,15 +316,15 @@ def test_history_page_shows_saved_reason(history_entry_id):
 
 
 def test_history_page_shows_outcome_badge(history_entry_id):
-    storage.update_history_outcome(history_entry_id, "採用")
+    storage.update_history_outcome(history_entry_id, "オファー")
 
     res = client.get("/history")
     assert res.status_code == 200
-    assert "採用" in res.text
+    assert "オファー" in res.text
 
 
 def test_history_page_shows_offer_declined_badge_distinct_from_rejected(history_entry_id):
-    storage.update_history_outcome(history_entry_id, "内定辞退")
+    storage.update_history_outcome(history_entry_id, "オファー辞退")
 
     res = client.get("/history")
     assert res.status_code == 200

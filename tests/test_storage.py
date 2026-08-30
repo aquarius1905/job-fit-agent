@@ -48,12 +48,12 @@ def test_append_history_assigns_unique_id_and_empty_outcome(two_history_entries)
 def test_update_history_outcome(two_history_entries):
     entry_id = storage.load_history()[0]["id"]  # 案件B
 
-    updated = storage.update_history_outcome(entry_id, "採用")
+    updated = storage.update_history_outcome(entry_id, "オファー")
     assert updated is True
 
     entries = storage.load_history()
     by_id = {e["id"]: e for e in entries}
-    assert by_id[entry_id]["outcome"] == "採用"
+    assert by_id[entry_id]["outcome"] == "オファー"
     # 他のエントリは影響を受けない
     other = [e for e in entries if e["id"] != entry_id][0]
     assert other["outcome"] == ""
@@ -62,7 +62,7 @@ def test_update_history_outcome(two_history_entries):
 def test_update_history_outcome_saves_reason(two_history_entries):
     entry_id = storage.load_history()[0]["id"]  # 案件B
 
-    storage.update_history_outcome(entry_id, "商談で不採用", "他候補者との比較の上、お見送り")
+    storage.update_history_outcome(entry_id, "商談で見送り", "他候補者との比較の上、お見送り")
 
     entries = storage.load_history()
     by_id = {e["id"]: e for e in entries}
@@ -72,7 +72,7 @@ def test_update_history_outcome_saves_reason(two_history_entries):
 def test_update_history_outcome_defaults_reason_to_empty(two_history_entries):
     entry_id = storage.load_history()[0]["id"]  # 案件B
 
-    storage.update_history_outcome(entry_id, "採用")
+    storage.update_history_outcome(entry_id, "オファー")
 
     entries = storage.load_history()
     by_id = {e["id"]: e for e in entries}
@@ -80,7 +80,7 @@ def test_update_history_outcome_defaults_reason_to_empty(two_history_entries):
 
 
 def test_update_history_outcome_unknown_id_returns_false(history_entry_id):
-    assert storage.update_history_outcome("存在しないid", "採用") is False
+    assert storage.update_history_outcome("存在しないid", "オファー") is False
 
 
 def test_update_history_outcome_leaves_original_file_intact_on_write_failure(
@@ -102,7 +102,7 @@ def test_update_history_outcome_leaves_original_file_intact_on_write_failure(
     monkeypatch.setattr(json, "dumps", flaky_dumps)
 
     with pytest.raises(ValueError):
-        storage.update_history_outcome(entry_id, "採用")
+        storage.update_history_outcome(entry_id, "オファー")
 
     # 元のファイルは書き込み失敗前のまま残っている（壊れていない）
     assert storage.HISTORY_PATH.read_text(encoding="utf-8") == original_content
