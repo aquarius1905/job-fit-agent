@@ -225,13 +225,25 @@ def test_set_history_outcome_rejects_unknown_value(history_entry_id):
 
     res = client.post(
         f"/history/{entry_id}/outcome",
-        data={"outcome": "内定辞退"},  # OUTCOME_OPTIONSに存在しない値
+        data={"outcome": "オファー辞退"},  # OUTCOME_OPTIONSに存在しない値
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 400
     assert res.json()["ok"] is False
     # 不正な値は保存されない
     assert storage.load_history()[0]["outcome"] == ""
+
+
+def test_set_history_outcome_accepts_offer_declined(history_entry_id):
+    entry_id = history_entry_id
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "内定辞退"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert storage.load_history()[0]["outcome"] == "内定辞退"
 
 
 def test_set_history_outcome_empty_value_clears_outcome(history_entry_id):
@@ -309,3 +321,12 @@ def test_history_page_shows_outcome_badge(history_entry_id):
     res = client.get("/history")
     assert res.status_code == 200
     assert "採用" in res.text
+
+
+def test_history_page_shows_offer_declined_badge_distinct_from_rejected(history_entry_id):
+    storage.update_history_outcome(history_entry_id, "内定辞退")
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert 'outcome-badge declined"' in res.text
+    assert 'outcome-badge rejected"' not in res.text

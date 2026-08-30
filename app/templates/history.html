@@ -31,7 +31,7 @@
   <details class="history-item">
     <summary>
       <span class="score-badge small">{{ e.evaluation.fit_score }}</span>
-      <span class="outcome-badge {{ 'accepted' if e.outcome == '採用' else 'rejected' if e.outcome else '' }}" {% if not e.outcome %}hidden{% endif %}>{{ e.outcome }}</span>
+      <span class="outcome-badge {{ e.outcome | outcome_badge_class }}" {% if not e.outcome %}hidden{% endif %}>{{ e.outcome }}</span>
       <span class="hist-title">{{ e.job_title }}</span>
       <span class="hist-date">{{ e.timestamp | jst }}</span>
     </summary>
@@ -82,6 +82,8 @@
 </section>
 
 <script>
+const OUTCOME_BADGE_CLASSES = { '採用': 'accepted', '内定辞退': 'declined' };
+
 document.querySelectorAll('.outcome-control').forEach(function (control) {
   const entryId = control.dataset.entryId;
   const select = control.querySelector('.outcome-select');
@@ -109,7 +111,8 @@ document.querySelectorAll('.outcome-control').forEach(function (control) {
           const badge = control.closest('details').querySelector('.outcome-badge');
           badge.textContent = outcome;
           badge.hidden = !outcome;
-          badge.className = 'outcome-badge' + (outcome === '採用' ? ' accepted' : outcome ? ' rejected' : '');
+          const badgeClass = outcome ? (OUTCOME_BADGE_CLASSES[outcome] || 'rejected') : '';
+          badge.className = 'outcome-badge' + (badgeClass ? ' ' + badgeClass : '');
           select.dataset.savedValue = outcome;
           reasonInput.dataset.savedValue = reason;
           errorEl.hidden = true;

@@ -20,7 +20,7 @@ JST = ZoneInfo("Asia/Tokyo")
 RATE_OPTIONS = list(range(1000, 10001, 500))
 REMOTE_OPTIONS = ["フルリモート", "一部リモート", "常駐"]
 WEEKLY_DAYS_OPTIONS = ["週1日", "週2日", "週3日", "週4日", "週5日(フルタイム)"]
-OUTCOME_OPTIONS = ["書類選考で不採用", "商談で不採用", "採用"]
+OUTCOME_OPTIONS = ["書類選考で不採用", "商談で不採用", "採用", "内定辞退"]
 
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -58,6 +58,22 @@ def meets_symbol(value: object) -> str:
 
 templates.env.filters["meets_class"] = meets_class
 templates.env.filters["meets_symbol"] = meets_symbol
+
+
+_OUTCOME_BADGE_CLASSES = {
+    "採用": "accepted",
+    "内定辞退": "declined",
+}
+_OUTCOME_BADGE_DEFAULT_CLASS = "rejected"
+
+
+def outcome_badge_class(value: str) -> str:
+    if not value:
+        return ""
+    return _OUTCOME_BADGE_CLASSES.get(value, _OUTCOME_BADGE_DEFAULT_CLASS)
+
+
+templates.env.filters["outcome_badge_class"] = outcome_badge_class
 
 
 def is_ajax(request: Request) -> bool:
