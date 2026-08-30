@@ -20,7 +20,7 @@ JST = ZoneInfo("Asia/Tokyo")
 RATE_OPTIONS = list(range(1000, 10001, 500))
 REMOTE_OPTIONS = ["フルリモート", "一部リモート", "常駐"]
 WEEKLY_DAYS_OPTIONS = ["週1日", "週2日", "週3日", "週4日", "週5日(フルタイム)"]
-OUTCOME_OPTIONS = ["書類選考で見送り", "商談で見送り", "オファー", "オファー辞退"]
+OUTCOME_OPTIONS = ["エントリー見送り", "書類選考で見送り", "商談で見送り", "オファー", "オファー辞退"]
 
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -63,6 +63,7 @@ templates.env.filters["meets_symbol"] = meets_symbol
 _OUTCOME_BADGE_CLASSES = {
     "オファー": "accepted",
     "オファー辞退": "declined",
+    "エントリー見送り": "declined",
 }
 _OUTCOME_BADGE_DEFAULT_CLASS = "rejected"
 

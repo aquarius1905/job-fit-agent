@@ -246,6 +246,18 @@ def test_set_history_outcome_accepts_offer_declined(history_entry_id):
     assert storage.load_history()[0]["outcome"] == "オファー辞退"
 
 
+def test_set_history_outcome_accepts_entry_declined(history_entry_id):
+    entry_id = history_entry_id
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "エントリー見送り"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 200
+    assert storage.load_history()[0]["outcome"] == "エントリー見送り"
+
+
 def test_set_history_outcome_empty_value_clears_outcome(history_entry_id):
     entry_id = history_entry_id
     storage.update_history_outcome(entry_id, "オファー")
@@ -325,6 +337,15 @@ def test_history_page_shows_outcome_badge(history_entry_id):
 
 def test_history_page_shows_offer_declined_badge_distinct_from_rejected(history_entry_id):
     storage.update_history_outcome(history_entry_id, "オファー辞退")
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert 'outcome-badge declined"' in res.text
+    assert 'outcome-badge rejected"' not in res.text
+
+
+def test_history_page_shows_entry_declined_badge_distinct_from_rejected(history_entry_id):
+    storage.update_history_outcome(history_entry_id, "エントリー見送り")
 
     res = client.get("/history")
     assert res.status_code == 200
