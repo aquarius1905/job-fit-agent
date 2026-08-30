@@ -117,11 +117,7 @@ history.replaceState(null, '', location.pathname);
 {% endif %}
 
 function postForm(form) {
-  return fetch(form.action, {
-    method: 'POST',
-    headers: { 'X-Requested-With': 'fetch' },
-    body: new FormData(form),
-  }).then(function (res) {
+  return postAjax(form.action, new FormData(form)).then(function (res) {
     return res.json().then(function (data) { return { ok: res.ok, data: data }; });
   });
 }

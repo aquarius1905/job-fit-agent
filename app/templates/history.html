@@ -103,11 +103,7 @@ document.querySelectorAll('.outcome-control').forEach(function (control) {
       formData.append('outcome', outcome);
       formData.append('reason', reason);
 
-      return fetch('/history/' + entryId + '/outcome', {
-        method: 'POST',
-        headers: { 'X-Requested-With': 'fetch' },
-        body: formData,
-      })
+      return postAjax('/history/' + entryId + '/outcome', formData)
         .then(function (res) {
           if (!res.ok) throw new Error('save failed');
           const badge = control.closest('details').querySelector('.outcome-badge');
