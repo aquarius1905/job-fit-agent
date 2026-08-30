@@ -35,20 +35,25 @@ def format_jst(iso_timestamp: str) -> str:
 templates.env.filters["jst"] = format_jst
 
 
+_MEETS_STYLES = {
+    "○": ("ok", "○"),
+    "△": ("partial", "△"),
+}
+_MEETS_DEFAULT_STYLE = ("ng", "×")
+
+
+def _meets_style(value: object) -> tuple[str, str]:
+    if value is True:
+        value = "○"
+    return _MEETS_STYLES.get(value, _MEETS_DEFAULT_STYLE)
+
+
 def meets_class(value: object) -> str:
-    if value == "○" or value is True:
-        return "ok"
-    if value == "△":
-        return "partial"
-    return "ng"
+    return _meets_style(value)[0]
 
 
 def meets_symbol(value: object) -> str:
-    if value == "○" or value is True:
-        return "○"
-    if value == "△":
-        return "△"
-    return "×"
+    return _meets_style(value)[1]
 
 
 templates.env.filters["meets_class"] = meets_class
