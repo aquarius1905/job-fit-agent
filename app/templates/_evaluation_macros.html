@@ -26,7 +26,7 @@
     <tr>
       <td>{{ w.item }}</td>
       <td>{{ w.preference }}</td>
-      <td class="{{ 'ok' if w.matches else 'ng' }}">{{ "○" if w.matches else "×" }}</td>
+      <td class="{{ w.matches | meets_class }}">{{ w.matches | meets_symbol }}</td>
       <td>{{ w.reason }}</td>
     </tr>
     {% endfor %}
