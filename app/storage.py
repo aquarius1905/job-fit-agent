@@ -14,8 +14,12 @@ WORK_STYLE_PATH = DATA_DIR / "work_style.json"
 HISTORY_PATH = DATA_DIR / "history.jsonl"
 
 
-def save_skill_sheet(text: str) -> None:
+def _ensure_data_dir() -> None:
     DATA_DIR.mkdir(exist_ok=True)
+
+
+def save_skill_sheet(text: str) -> None:
+    _ensure_data_dir()
     SKILL_SHEET_PATH.write_text(text, encoding="utf-8")
 
 
@@ -26,7 +30,7 @@ def load_skill_sheet() -> str | None:
 
 
 def save_work_style(data: dict) -> None:
-    DATA_DIR.mkdir(exist_ok=True)
+    _ensure_data_dir()
     WORK_STYLE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -37,7 +41,7 @@ def load_work_style() -> dict:
 
 
 def append_history(job_title: str, job_posting_text: str, evaluation: dict) -> None:
-    DATA_DIR.mkdir(exist_ok=True)
+    _ensure_data_dir()
     entry = {
         "id": str(uuid.uuid4()),
         "timestamp": datetime.now(UTC).isoformat(),
