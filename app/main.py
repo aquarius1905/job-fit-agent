@@ -59,6 +59,15 @@ def is_ajax(request: Request) -> bool:
     return request.headers.get("x-requested-with") == "fetch"
 
 
+def ajax_or_redirect(
+    request: Request, json_data: dict, redirect_url: str, status_code: int = 200
+) -> JSONResponse | RedirectResponse:
+    """Ajaxリクエストにはjson_dataを、通常のフォーム送信にはredirect_urlへのリダイレクトを返す。"""
+    if is_ajax(request):
+        return JSONResponse(json_data, status_code=status_code)
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     skill_sheet = storage.load_skill_sheet()
@@ -111,9 +120,9 @@ async def skill_sheet_upload(
         text = manual_text
 
     storage.save_skill_sheet(text)
-    if is_ajax(request):
-        return JSONResponse({"ok": True, "skill_sheet_text": text})
-    return RedirectResponse(url="/skill-sheet?saved=1", status_code=303)
+    return ajax_or_redirect(
+        request, {"ok": True, "skill_sheet_text": text}, "/skill-sheet?saved=1"
+    )
 
 
 @app.post("/work-style", response_class=HTMLResponse)
@@ -138,9 +147,7 @@ async def work_style_upload(
             "free_text": free_text,
         }
     )
-    if is_ajax(request):
-        return JSONResponse({"ok": True})
-    return RedirectResponse(url="/skill-sheet?saved=1", status_code=303)
+    return ajax_or_redirect(request, {"ok": True}, "/skill-sheet?saved=1")
 
 
 @app.post("/evaluate", response_class=HTMLResponse)
@@ -234,18 +241,17 @@ async def set_history_outcome(
     request: Request, entry_id: str, outcome: str = Form(""), reason: str = Form("")
 ):
     if outcome and outcome not in OUTCOME_OPTIONS:
-        if is_ajax(request):
-            return JSONResponse({"ok": False, "error": "不正な選考結果です"}, status_code=400)
-        return RedirectResponse(url="/history", status_code=303)
+        return ajax_or_redirect(
+            request, {"ok": False, "error": "不正な選考結果です"}, "/history", status_code=400
+        )
 
     updated = storage.update_history_outcome(entry_id, outcome, reason)
     if not updated:
-        if is_ajax(request):
-            return JSONResponse(
-                {"ok": False, "error": "該当する履歴が見つかりません"}, status_code=404
-            )
-        return RedirectResponse(url="/history", status_code=303)
+        return ajax_or_redirect(
+            request,
+            {"ok": False, "error": "該当する履歴が見つかりません"},
+            "/history",
+            status_code=404,
+        )
 
-    if is_ajax(request):
-        return JSONResponse({"ok": True})
-    return RedirectResponse(url="/history", status_code=303)
+    return ajax_or_redirect(request, {"ok": True}, "/history")
