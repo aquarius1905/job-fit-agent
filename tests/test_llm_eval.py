@@ -90,6 +90,38 @@ def test_or_condition_is_not_split_into_separate_must_items():
     assert cloud_items[0]["meets"] == "○", cloud_items[0]["reason"]
 
 
+def test_matching_rate_is_not_flagged_as_concern_or_penalized():
+    """単価がwork_style_fitの登録条件（希望単価下限）を満たしているにもかかわらず、
+    モデルが登録されていない独自の「経験年数に対して相場的に低い」という基準を
+    持ち込んでconcernsに指摘したり、fit_scoreを不当に下げたりしないこと。
+
+    実際に本番で発生したバグ（希望単価4000円/時以上に対し実際の単価4000〜5000円/時で
+    work_style_fit側はmatches=trueなのに、concernsで「経験・スキル水準に対してかなり
+    低め」と指摘され、fit_scoreが42まで下がっていた）の回帰検知のためのeval。
+    """
+    skill_sheet = "Pythonでのバックエンド開発経験10年。FastAPI/Djangoでのバックエンド開発多数。"
+    work_style = "希望単価（時給）: 4000円/時 〜 上限指定なし"
+    job_posting = (
+        "【必須】Pythonでのバックエンド開発経験3年以上。\n"
+        "【勤務地】フルリモート。\n"
+        "【報酬】月額単価320,000〜400,000円（月80h/週20h稼働の場合）、時間単価4,000〜5,000円/時程度。"
+    )
+
+    result = llm.evaluate(skill_sheet, work_style, job_posting)
+
+    rate_items = [w for w in result["work_style_fit"] if "単価" in w["item"]]
+    assert rate_items, result["work_style_fit"]
+    assert rate_items[0]["matches"] is True, rate_items[0]["reason"]
+
+    concern_text = "\n".join(result["concerns"])
+    assert "低" not in concern_text, (
+        f"単価が希望条件を満たしているのに、低いという懸念が挙げられている: {result['concerns']}"
+    )
+    assert result["fit_score"] >= 70, (
+        f"必須スキルを満たし単価も条件通りなのに、fit_scoreが不当に低い: {result}"
+    )
+
+
 def test_explicit_onsite_requirement_conflicts_with_full_remote_preference():
     """フルリモート希望と、求人票の明確な出社必須条件との不一致が検知されること。"""
     skill_sheet = "Pythonでのバックエンド開発経験5年。"
