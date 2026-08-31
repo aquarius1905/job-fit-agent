@@ -1,6 +1,10 @@
 import pytest
 
-from app.llm import _enforce_experience_thresholds, compose_work_style_text
+from app.llm import (
+    _cap_fit_score_for_unmet_conditions,
+    _enforce_experience_thresholds,
+    compose_work_style_text,
+)
 
 
 @pytest.mark.parametrize(
@@ -26,6 +30,94 @@ def test_enforce_experience_thresholds(
     ]
     _enforce_experience_thresholds(skills)
     assert skills[0]["meets"] == expected_meets
+
+
+def _make_result(fit_score, fit_label, required_skills=None, work_style_fit=None):
+    return {
+        "fit_score": fit_score,
+        "fit_label": fit_label,
+        "required_skills": required_skills or [],
+        "work_style_fit": work_style_fit or [],
+    }
+
+
+def test_cap_fit_score_when_required_skill_unmet():
+    # 実際に発生したケース: 必須スキルが×/△なのに応募推奨(70点台)が出ていた
+    result = _make_result(
+        78,
+        "応募推奨",
+        required_skills=[
+            {"skill": "LLM開発経験", "required": True, "meets": "×"},
+            {"skill": "Python経験", "required": True, "meets": "○"},
+        ],
+    )
+    _cap_fit_score_for_unmet_conditions(result)
+    assert result["fit_score"] == 60
+    assert result["fit_label"] == "要検討"
+
+
+def test_cap_fit_score_when_full_remote_preference_mismatched():
+    result = _make_result(
+        75,
+        "応募推奨",
+        work_style_fit=[
+            {"item": "出社に関する希望", "preference": "フルリモート希望", "matches": False},
+        ],
+    )
+    _cap_fit_score_for_unmet_conditions(result)
+    assert result["fit_score"] == 60
+    assert result["fit_label"] == "要検討"
+
+
+def test_cap_fit_score_when_remote_mismatch_stated_in_item_field_only():
+    # 実際に発生したケース: 「フルリモート」の文言がpreferenceではなくitem側にのみ
+    # 書かれることがあり、item欄も見ないと検出漏れになる
+    result = _make_result(
+        70,
+        "応募推奨",
+        work_style_fit=[
+            {"item": "フルリモート", "preference": "◯希望", "matches": False},
+        ],
+    )
+    _cap_fit_score_for_unmet_conditions(result)
+    assert result["fit_score"] == 60
+    assert result["fit_label"] == "要検討"
+
+
+def test_cap_fit_score_untouched_when_all_required_met():
+    result = _make_result(
+        85,
+        "応募推奨",
+        required_skills=[{"skill": "Python経験", "required": True, "meets": "○"}],
+        work_style_fit=[
+            {"item": "出社に関する希望", "preference": "フルリモート希望", "matches": True}
+        ],
+    )
+    _cap_fit_score_for_unmet_conditions(result)
+    assert result["fit_score"] == 85
+    assert result["fit_label"] == "応募推奨"
+
+
+def test_cap_fit_score_does_not_raise_score_or_overwrite_cautious_label():
+    result = _make_result(
+        40,
+        "見送り推奨",
+        required_skills=[{"skill": "LLM開発経験", "required": True, "meets": "×"}],
+    )
+    _cap_fit_score_for_unmet_conditions(result)
+    assert result["fit_score"] == 40
+    assert result["fit_label"] == "見送り推奨"
+
+
+def test_cap_fit_score_ignores_optional_skill_gap():
+    result = _make_result(
+        80,
+        "応募推奨",
+        required_skills=[{"skill": "リーダー経験", "required": False, "meets": "×"}],
+    )
+    _cap_fit_score_for_unmet_conditions(result)
+    assert result["fit_score"] == 80
+    assert result["fit_label"] == "応募推奨"
 
 
 def test_compose_work_style_text_includes_all_sections():

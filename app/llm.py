@@ -235,6 +235,7 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
         if block.type == "tool_use" and block.name == "submit_evaluation":
             result = block.input
             _enforce_experience_thresholds(result.get("required_skills") or [])
+            _cap_fit_score_for_unmet_conditions(result)
             return result
 
     raise RuntimeError("Claudeからの評価結果を取得できませんでした。")
@@ -258,3 +259,37 @@ def _enforce_experience_thresholds(required_skills: list[dict]) -> None:
             item["meets"] = "△"
         else:
             item["meets"] = "×"
+
+
+_FIT_SCORE_CAP_FOR_UNMET_CONDITIONS = 60
+
+
+def _cap_fit_score_for_unmet_conditions(result: dict) -> None:
+    """必須条件未達・フルリモート不一致がある場合、fit_scoreの上限を機械的に強制する。
+
+    プロンプトの指示（「重大な不一致があればスコアを大きく下げる」）だけでは
+    実際には反映されず、必須スキル未達やフルリモート希望との不一致がある案件でも
+    70点台の「応募推奨」判定が出てしまっていたため、閾値強制ロジックを追加する
+    （実際の選考結果と突き合わせて発覚した較正不足の修正）。
+    """
+    required_skills = result.get("required_skills") or []
+    has_unmet_required = any(
+        item.get("required") and item.get("meets") != "○" for item in required_skills
+    )
+
+    work_style_fit = result.get("work_style_fit") or []
+    has_remote_mismatch = any(
+        item.get("matches") is False
+        and ("リモート" in (item.get("item") or "") or "リモート" in (item.get("preference") or ""))
+        for item in work_style_fit
+    )
+
+    if not (has_unmet_required or has_remote_mismatch):
+        return
+
+    if result.get("fit_score", 0) > _FIT_SCORE_CAP_FOR_UNMET_CONDITIONS:
+        result["fit_score"] = _FIT_SCORE_CAP_FOR_UNMET_CONDITIONS
+
+    fit_label = result.get("fit_label") or ""
+    if "推奨" in fit_label and "見送り" not in fit_label:
+        result["fit_label"] = "要検討"
