@@ -253,7 +253,6 @@ def history(request: Request, page: int = 1, sort: str = "date"):
             "outcome_options": OUTCOME_OPTIONS,
             "rate": rate,
             "rate_min_fit_score": rate_estimate.MIN_FIT_SCORE,
-            "rate_min_samples": rate_estimate.MIN_SAMPLES,
         },
     )
 

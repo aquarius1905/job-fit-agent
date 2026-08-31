@@ -161,10 +161,10 @@ def test_history_entry_with_no_concerns_shows_fallback_text(isolated_data_dir, m
     assert "特になし" in res.text
 
 
-def test_history_shows_insufficient_data_message_by_default(isolated_data_dir):
+def test_history_hides_rate_estimate_when_not_enough_samples(isolated_data_dir):
     res = client.get("/history")
     assert res.status_code == 200
-    assert "データ不足のため未算出" in res.text
+    assert "rate-estimate" not in res.text
 
 
 def test_history_shows_rate_estimate_when_enough_samples(isolated_data_dir, make_evaluation):
