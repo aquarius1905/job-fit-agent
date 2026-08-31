@@ -113,13 +113,43 @@ def test_matching_rate_is_not_flagged_as_concern_or_penalized():
     assert rate_items, result["work_style_fit"]
     assert rate_items[0]["matches"] is True, rate_items[0]["reason"]
 
-    concern_text = "\n".join(result["concerns"])
-    assert "低" not in concern_text, (
-        f"単価が希望条件を満たしているのに、低いという懸念が挙げられている: {result['concerns']}"
-    )
+    # 「稼働時間が短いため月額の絶対額は控えめ」といった、時間単価とは別の正当な指摘は許容する。
+    # 禁止したいのは、経験・スキル水準を理由に単価そのもの（時間単価水準）を否定する主張。
+    for concern in result["concerns"]:
+        has_experience_basis = "経験" in concern or "スキル水準" in concern
+        has_rate_topic = "単価" in concern or "報酬" in concern
+        has_negative_judgement = "低" in concern or "ミスマッチ" in concern or "不足" in concern
+        assert not (has_experience_basis and has_rate_topic and has_negative_judgement), (
+            "単価が希望条件を満たしているのに、経験・スキル水準を理由に"
+            f"単価を否定する懸念が挙げられている: {concern}"
+        )
+
     assert result["fit_score"] >= 70, (
         f"必須スキルを満たし単価も条件通りなのに、fit_scoreが不当に低い: {result}"
     )
+
+
+def test_broad_weekly_days_preference_matches_reduced_hours_posting():
+    """稼働日数の希望が「週1〜5日いずれも可」のような幅のある条件の場合、
+    求人票の稼働時間（例: 月80h/週20h程度＝週1〜2日相当）がその範囲に
+    収まっていればmatches=trueにすること。
+
+    実際に発生したバグ: reasonでは「応募者の希望範囲（週1〜5日）には収まる」と
+    書きながら、matchesはfalseにするという自己矛盾が起きていた。回帰検知のためのeval。
+    """
+    skill_sheet = "Pythonでのバックエンド開発経験10年。"
+    work_style = "希望稼働日数（週あたり、許容できる範囲）: 週1日、週2日、週3日、週4日、週5日(フルタイム)"
+    job_posting = (
+        "【必須】Pythonでのバックエンド開発経験3年以上。\n"
+        "【稼働時間】月80h/週20h稼働（週1〜2日相当）。\n"
+        "【勤務地】フルリモート。"
+    )
+
+    result = llm.evaluate(skill_sheet, work_style, job_posting)
+
+    days_items = [w for w in result["work_style_fit"] if "稼働日数" in w["item"]]
+    assert days_items, result["work_style_fit"]
+    assert days_items[0]["matches"] is True, days_items[0]["reason"]
 
 
 def test_explicit_onsite_requirement_conflicts_with_full_remote_preference():
