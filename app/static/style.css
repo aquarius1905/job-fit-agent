@@ -11,6 +11,7 @@
   --ok-bg: #ecfdf3;
   --ng-bg: #fef2f2;
   --partial-bg: #fffbeb;
+  --accent-bg: #eff6ff;
 }
 
 * { box-sizing: border-box; }
@@ -228,6 +229,7 @@ button:hover:not(:disabled) { opacity: 0.9; }
 .outcome-badge.accepted { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
 .outcome-badge.rejected { background: var(--ng-bg); color: var(--ng); border-color: transparent; }
 .outcome-badge.declined { background: var(--partial-bg); color: var(--partial); border-color: transparent; }
+.outcome-badge.meeting-declined { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
 
 .outcome-control { margin-bottom: 16px; font-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .outcome-control select { margin-left: 8px; }

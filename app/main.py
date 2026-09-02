@@ -64,6 +64,8 @@ _OUTCOME_BADGE_CLASSES = {
     "オファー": "accepted",
     "オファー辞退": "declined",
     "エントリー見送り": "declined",
+    "書類選考で見送り": "rejected",
+    "商談で見送り": "meeting-declined",
 }
 _OUTCOME_BADGE_DEFAULT_CLASS = "rejected"
 
