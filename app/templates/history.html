@@ -96,14 +96,15 @@ document.querySelectorAll('.outcome-control').forEach(function (control) {
   select.dataset.savedValue = select.value;
   reasonInput.dataset.savedValue = reasonInput.value;
 
-  // 保存は直列化する（同時に2件飛ばさない）。各リクエストは実行時点の最新の
-  // select/reason値を読むため、後に積まれたリクエストが常に最新の状態を送る。
+  // 保存は直列化する（同時に2件飛ばさない）。送信する値はキュー投入時点
+  // （change/blur発火時点）でキャプチャする。保存中の失敗リセットが後続の
+  // キュー済みリクエストの値を上書きしてしまわないようにするため。
   let chain = Promise.resolve();
 
   function queueSave(triggerEl) {
+    const outcome = select.value;
+    const reason = reasonInput.value;
     chain = chain.then(function () {
-      const outcome = select.value;
-      const reason = reasonInput.value;
       const formData = new FormData();
       formData.append('outcome', outcome);
       formData.append('reason', reason);
