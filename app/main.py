@@ -5,6 +5,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,8 +15,6 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from app import llm, parsing, rate_estimate, storage
-
-load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 JST = ZoneInfo("Asia/Tokyo")
@@ -89,7 +90,9 @@ def ajax_or_redirect(
     """Ajaxリクエストにはjson_dataを、通常のフォーム送信にはredirect_urlへのリダイレクトを返す。"""
     if is_ajax(request):
         return JSONResponse(json_data, status_code=status_code)
-    return RedirectResponse(url=redirect_url, status_code=303)
+    return RedirectResponse(
+        url=redirect_url, status_code=303 if status_code == 200 else status_code
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
