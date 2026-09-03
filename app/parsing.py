@@ -4,6 +4,9 @@ from __future__ import annotations
 import io
 
 from docx import Document
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 from openpyxl import load_workbook
 
 
@@ -39,12 +42,15 @@ def _extract_docx(content: bytes) -> str:
     except Exception as e:
         raise ValueError(f"Wordファイルを読み込めませんでした（破損している可能性があります）: {e}") from e
     lines: list[str] = []
-    for paragraph in document.paragraphs:
-        if paragraph.text.strip():
-            lines.append(paragraph.text)
-    for table in document.tables:
-        for row in table.rows:
-            cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-            if cells:
-                lines.append("\t".join(cells))
+    for child in document.element.body.iterchildren():
+        if child.tag == qn("w:p"):
+            text = Paragraph(child, document).text.strip()
+            if text:
+                lines.append(text)
+        elif child.tag == qn("w:tbl"):
+            table = Table(child, document)
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    lines.append("\t".join(cells))
     return "\n".join(lines)
