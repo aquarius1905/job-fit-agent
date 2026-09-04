@@ -1,6 +1,8 @@
 """判定履歴の単価データから、適正と思われる時給レンジを推定する。"""
 from __future__ import annotations
 
+import statistics
+
 MIN_FIT_SCORE = 70
 MIN_SAMPLES = 3
 HOURS_PER_MONTH = 160  # 週5日 x 1日8時間 x 4週として概算
@@ -32,8 +34,8 @@ def estimate_hourly_rate(
     if sample_count < MIN_SAMPLES:
         return {"available": False, "sample_count": sample_count}
 
-    hourly_min = round(_median(hourly_mins))
-    hourly_max = round(_median(hourly_maxs))
+    hourly_min = round(statistics.median(hourly_mins))
+    hourly_max = round(statistics.median(hourly_maxs))
     return {
         "available": True,
         "sample_count": sample_count,
@@ -42,11 +44,3 @@ def estimate_hourly_rate(
         "monthly_min": round(hourly_min * HOURS_PER_MONTH),
         "monthly_max": round(hourly_max * HOURS_PER_MONTH),
     }
-
-
-def _median(values: list[float]) -> float:
-    values = sorted(values)
-    mid = len(values) // 2
-    if len(values) % 2 == 1:
-        return values[mid]
-    return (values[mid - 1] + values[mid]) / 2

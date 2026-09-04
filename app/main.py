@@ -4,10 +4,6 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -257,6 +253,8 @@ def history(request: Request, page: int = 1, sort: str = "date"):
             "total_pages": total_pages,
             "sort": sort,
             "outcome_options": OUTCOME_OPTIONS,
+            "outcome_badge_classes": _OUTCOME_BADGE_CLASSES,
+            "outcome_badge_default_class": _OUTCOME_BADGE_DEFAULT_CLASS,
             "rate": rate,
             "rate_min_fit_score": rate_estimate.MIN_FIT_SCORE,
         },

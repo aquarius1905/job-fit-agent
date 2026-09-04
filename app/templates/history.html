@@ -85,7 +85,8 @@
 </section>
 
 <script>
-const OUTCOME_BADGE_CLASSES = { 'オファー': 'accepted', 'オファー辞退': 'declined', 'エントリー見送り': 'declined', 'エントリー中': 'in-progress', '書類選考で見送り': 'rejected', '商談で見送り': 'meeting-declined' };
+const OUTCOME_BADGE_CLASSES = {{ outcome_badge_classes | tojson }};
+const OUTCOME_BADGE_DEFAULT_CLASS = {{ outcome_badge_default_class | tojson }};
 
 document.querySelectorAll('.outcome-control').forEach(function (control) {
   const entryId = control.dataset.entryId;
@@ -115,7 +116,7 @@ document.querySelectorAll('.outcome-control').forEach(function (control) {
           const badge = control.closest('details').querySelector('.outcome-badge');
           badge.textContent = outcome;
           badge.hidden = !outcome;
-          const badgeClass = outcome ? (OUTCOME_BADGE_CLASSES[outcome] || 'rejected') : '';
+          const badgeClass = outcome ? (OUTCOME_BADGE_CLASSES[outcome] || OUTCOME_BADGE_DEFAULT_CLASS) : '';
           badge.className = 'outcome-badge' + (badgeClass ? ' ' + badgeClass : '');
           select.dataset.savedValue = outcome;
           reasonInput.dataset.savedValue = reason;
