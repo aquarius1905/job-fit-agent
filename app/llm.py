@@ -227,6 +227,7 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
     response = client.messages.create(
         model=DEFAULT_MODEL,
         max_tokens=4096,
+        temperature=0,
         system=_SYSTEM_PROMPT,
         tools=[_EVALUATION_TOOL],
         tool_choice={"type": "tool", "name": "submit_evaluation"},
