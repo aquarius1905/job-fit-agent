@@ -351,3 +351,42 @@ def test_history_page_shows_entry_declined_badge_distinct_from_rejected(history_
     assert res.status_code == 200
     assert 'outcome-badge declined"' in res.text
     assert 'outcome-badge rejected"' not in res.text
+
+
+def test_join_sets_cookie_and_redirects(isolated_data_dir):
+    res = client.get("/join", params={"t": "tester-a"}, follow_redirects=False)
+    assert res.status_code == 307
+    assert res.headers["location"] == "/"
+    assert res.cookies["job_fit_tester"] == "tester-a"
+
+
+def test_join_rejects_invalid_token_without_setting_cookie(isolated_data_dir):
+    res = client.get("/join", params={"t": "../../etc"}, follow_redirects=False)
+    assert res.status_code == 307
+    assert "job_fit_tester" not in res.cookies
+
+
+def test_join_without_token_does_not_set_cookie(isolated_data_dir):
+    res = client.get("/join", follow_redirects=False)
+    assert res.status_code == 307
+    assert "job_fit_tester" not in res.cookies
+
+
+def test_tester_namespace_isolates_skill_sheet_and_history(isolated_data_dir):
+    client_a = TestClient(app)
+    client_a.get("/join", params={"t": "tester-a"})
+    client_b = TestClient(app)
+    client_b.get("/join", params={"t": "tester-b"})
+
+    client_a.post("/skill-sheet", data={"manual_text": "テスターAの経歴"})
+    client_b.post("/skill-sheet", data={"manual_text": "テスターBの経歴"})
+
+    res_a = client_a.get("/skill-sheet")
+    res_b = client_b.get("/skill-sheet")
+    assert "テスターAの経歴" in res_a.text
+    assert "テスターBの経歴" not in res_a.text
+    assert "テスターBの経歴" in res_b.text
+    assert "テスターAの経歴" not in res_b.text
+
+    # cookieなし（自分専用インスタンス）はどちらの影響も受けない
+    assert storage.load_skill_sheet() is None
