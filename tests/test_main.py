@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app import llm, storage
+from app import llm, main, storage
 from app.main import app
 
 client = TestClient(app)
@@ -390,3 +390,33 @@ def test_tester_namespace_isolates_skill_sheet_and_history(isolated_data_dir):
 
     # cookieなし（自分専用インスタンス）はどちらの影響も受けない
     assert storage.load_skill_sheet() is None
+
+
+def test_public_mode_auto_assigns_isolated_namespace(isolated_data_dir, monkeypatch):
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    client_x = TestClient(app)
+    client_y = TestClient(app)
+
+    res_x = client_x.get("/")
+    assert res_x.status_code == 200
+    assert "job_fit_tester" in res_x.cookies
+
+    res_y = client_y.get("/")
+    assert res_y.cookies["job_fit_tester"] != res_x.cookies["job_fit_tester"]
+
+    client_x.post("/skill-sheet", data={"manual_text": "Xさんの経歴"})
+    client_y.post("/skill-sheet", data={"manual_text": "Yさんの経歴"})
+
+    assert "Xさんの経歴" in client_x.get("/skill-sheet").text
+    assert "Xさんの経歴" not in client_y.get("/skill-sheet").text
+    assert "Yさんの経歴" in client_y.get("/skill-sheet").text
+
+    # 自分専用インスタンス（cookieなしの直接呼び出し）には影響しない
+    assert storage.load_skill_sheet() is None
+
+
+def test_public_mode_off_by_default_does_not_auto_assign(isolated_data_dir):
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "job_fit_tester" not in res.cookies

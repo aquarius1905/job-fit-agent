@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import secrets
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -23,20 +25,57 @@ OUTCOME_OPTIONS = ["エントリー見送り", "エントリー中", "書類選�
 TESTER_TOKEN_COOKIE = "job_fit_tester"
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
+# ホスティングしてお試し利用者に公開する時だけ1を設定する。
+# 自分専用ローカル環境では未設定のままにし、従来通りdata/直下を使う。
+PUBLIC_MODE = os.environ.get("PUBLIC_MODE", "") == "1"
+
 
 def get_namespace(request: Request) -> str:
     """お試し利用者用のトークン（Cookie経由）をデータの保存先namespaceとして返す。
 
+    PUBLIC_MODEが有効な場合、ensure_tester_tokenミドルウェアが未訪問者に
+    自動でトークンを割り当てるため、それをrequest.stateから受け取る。
     未設定・不正な値の場合は自分専用インスタンスと同じ扱い（空文字＝data/直下）にする。
     """
+    namespace = getattr(request.state, "namespace", None)
+    if namespace is not None:
+        return namespace
     token = request.cookies.get(TESTER_TOKEN_COOKIE, "")
     if token and _TOKEN_RE.match(token):
         return token
     return ""
 
+
 app = FastAPI(title="job-fit-agent")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+@app.middleware("http")
+async def ensure_tester_token(request: Request, call_next):
+    """PUBLIC_MODE時、Cookie未所持の訪問者に自動でお試し用トークンを発行する。"""
+    token = request.cookies.get(TESTER_TOKEN_COOKIE, "")
+    valid = bool(token) and _TOKEN_RE.match(token)
+
+    new_token = None
+    if valid:
+        request.state.namespace = token
+    elif PUBLIC_MODE:
+        new_token = secrets.token_urlsafe(8)
+        request.state.namespace = new_token
+    else:
+        request.state.namespace = ""
+
+    response = await call_next(request)
+    if new_token:
+        response.set_cookie(
+            TESTER_TOKEN_COOKIE,
+            new_token,
+            max_age=60 * 60 * 24 * 30,
+            httponly=True,
+            samesite="lax",
+        )
+    return response
 
 
 def format_jst(iso_timestamp: str) -> str:
