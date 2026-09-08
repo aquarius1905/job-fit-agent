@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}job-fit-agent{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css?v=14">
-  <script src="/static/app.js?v=1"></script>
+  <script>window.JOBFIT_PUBLIC_MODE = {{ public_mode | tojson }};</script>
+  <script src="/static/app.js?v=2"></script>
 </head>
 <body>
   <header class="topbar">

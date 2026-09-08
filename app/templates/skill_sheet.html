@@ -6,7 +6,11 @@
 
 <section class="card">
   <h1>スキルシート登録</h1>
+  {% if public_mode %}
+  <p class="muted">対象ファイル: Excel(.xlsx) / Word(.docx)。内容はサーバーには保存せず、このブラウザ（あなたの端末）にのみ保存されます。</p>
+  {% else %}
   <p class="muted">対象ファイル: Excel(.xlsx) / Word(.docx)。内容はこのマシンの data/ フォルダにのみ保存されます。</p>
+  {% endif %}
 
   <div id="skill-sheet-error">
   {% if error %}
@@ -129,6 +133,7 @@ document.getElementById('skill-sheet-form').addEventListener('submit', function 
     if (result.ok) {
       errorBox.innerHTML = '';
       document.getElementById('manual-text').value = result.data.skill_sheet_text;
+      if (window.JOBFIT_PUBLIC_MODE) JobFitStorage.setSkillSheet(result.data.skill_sheet_text);
       showSavedToast();
     } else {
       errorBox.innerHTML = '<div class="notice notice-error"></div>';
@@ -140,9 +145,33 @@ document.getElementById('skill-sheet-form').addEventListener('submit', function 
 document.getElementById('work-style-form').addEventListener('submit', function (e) {
   e.preventDefault();
   postForm(e.target).then(function (result) {
-    if (result.ok) showSavedToast();
+    if (result.ok) {
+      if (window.JOBFIT_PUBLIC_MODE) JobFitStorage.setWorkStyle(result.data.work_style);
+      showSavedToast();
+    }
   });
 });
+
+if (window.JOBFIT_PUBLIC_MODE) {
+  document.getElementById('manual-text').value = JobFitStorage.getSkillSheet();
+  const ws = JobFitStorage.getWorkStyle();
+  document.querySelectorAll('input[name="remote_options"]').forEach(function (el) {
+    el.checked = (ws.remote_options || []).indexOf(el.value) !== -1;
+  });
+  document.querySelectorAll('input[name="weekly_days"]').forEach(function (el) {
+    el.checked = (ws.weekly_days || []).indexOf(el.value) !== -1;
+  });
+  const rateMin = document.querySelector('select[name="rate_min"]');
+  const rateMax = document.querySelector('select[name="rate_max"]');
+  if (rateMin && ws.rate_min) rateMin.value = ws.rate_min;
+  if (rateMax && ws.rate_max) rateMax.value = ws.rate_max;
+  const leaderCb = document.querySelector('input[name="leader_ok"]');
+  const pmCb = document.querySelector('input[name="pm_ok"]');
+  if (leaderCb) leaderCb.checked = !!ws.leader_ok;
+  if (pmCb) pmCb.checked = !!ws.pm_ok;
+  const freeTextEl = document.querySelector('textarea[name="free_text"]');
+  if (freeTextEl) freeTextEl.value = ws.free_text || '';
+}
 </script>
 
 {% endblock %}

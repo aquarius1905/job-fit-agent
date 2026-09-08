@@ -3,7 +3,11 @@
 {% block title %}判定 | job-fit-agent{% endblock %}
 {% block content %}
 
-{% if not has_skill_sheet %}
+{% if has_skill_sheet is none %}
+  <div class="notice" id="skill-sheet-notice" hidden>
+    まだプロフィールが登録されていません。先に <a href="/skill-sheet">プロフィール登録</a> を行ってください。
+  </div>
+{% elif not has_skill_sheet %}
   <div class="notice">
     まだスキルシートが登録されていません。先に <a href="/skill-sheet">スキルシート登録</a> を行ってください。
   </div>
@@ -27,7 +31,12 @@
       <input type="file" name="job_posting_file" accept=".txt,.md,.docx,.xlsx">
     </label>
 
-    <button type="submit" {% if not has_skill_sheet %}disabled{% endif %}>判定する</button>
+    {% if public_mode %}
+    <input type="hidden" name="client_skill_sheet" id="client-skill-sheet-field">
+    <input type="hidden" name="client_work_style_json" id="client-work-style-field">
+    {% endif %}
+
+    <button type="submit" id="evaluate-submit-btn" {% if has_skill_sheet == False %}disabled{% endif %}>判定する</button>
   </form>
 </section>
 
@@ -73,6 +82,10 @@
 </section>
 {% endif %}
 
+{% if public_mode and history_entry %}
+<script>window.__jobfitHistoryEntry = {{ history_entry | tojson }};</script>
+{% endif %}
+
 <script>
 function copyLetter() {
   const el = document.getElementById('application-letter');
@@ -82,9 +95,25 @@ function copyLetter() {
 
 document.getElementById('evaluate-form').addEventListener('submit', function (e) {
   if (!e.target.checkValidity()) return;
+  if (window.JOBFIT_PUBLIC_MODE) {
+    document.getElementById('client-skill-sheet-field').value = JobFitStorage.getSkillSheet();
+    document.getElementById('client-work-style-field').value = JSON.stringify(JobFitStorage.getWorkStyle());
+  }
   document.getElementById('loading-overlay').hidden = false;
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) btn.disabled = true;
 });
+
+if (window.JOBFIT_PUBLIC_MODE) {
+  const notice = document.getElementById('skill-sheet-notice');
+  const hasSheet = JobFitStorage.hasSkillSheet();
+  if (notice) notice.hidden = hasSheet;
+  const btn = document.getElementById('evaluate-submit-btn');
+  if (btn && !hasSheet) btn.disabled = true;
+
+  if (window.__jobfitHistoryEntry) {
+    JobFitStorage.pushHistoryEntry(window.__jobfitHistoryEntry);
+  }
+}
 </script>
 {% endblock %}

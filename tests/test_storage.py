@@ -122,31 +122,19 @@ def test_update_history_outcome_leaves_original_file_intact_on_write_failure(
     assert list(storage.DATA_DIR.glob(".history-*.tmp")) == []
 
 
-def test_namespace_isolates_skill_sheet(isolated_data_dir):
-    storage.save_skill_sheet("自分専用の経歴")
-    storage.save_skill_sheet("テスターAの経歴", namespace="tester-a")
+def test_build_history_entry_does_not_write_to_disk(isolated_data_dir):
+    entry = storage.build_history_entry("案件A", "求人票A", {"fit_score": 50})
 
-    assert storage.load_skill_sheet() == "自分専用の経歴"
-    assert storage.load_skill_sheet(namespace="tester-a") == "テスターAの経歴"
-
-
-def test_namespace_isolates_history_between_testers(isolated_data_dir):
-    storage.append_history("案件A", "求人票A", {"fit_score": 50}, namespace="tester-a")
-    storage.append_history("案件B", "求人票B", {"fit_score": 80}, namespace="tester-b")
-
-    assert [e["job_title"] for e in storage.load_history(namespace="tester-a")] == ["案件A"]
-    assert [e["job_title"] for e in storage.load_history(namespace="tester-b")] == ["案件B"]
-    # 自分専用（namespaceなし）には影響しない
-    assert storage.load_history() == []
+    assert entry["job_title"] == "案件A"
+    assert entry["evaluation"] == {"fit_score": 50}
+    assert entry["outcome"] == ""
+    assert entry["id"]
+    assert entry["timestamp"]
+    assert not storage.HISTORY_PATH.exists()
 
 
-def test_namespace_update_history_outcome_only_affects_own_namespace(isolated_data_dir):
-    storage.append_history("案件A", "求人票A", {"fit_score": 50}, namespace="tester-a")
-    entry_id = storage.load_history(namespace="tester-a")[0]["id"]
+def test_append_history_returns_the_written_entry(isolated_data_dir):
+    entry = storage.append_history("案件A", "求人票A", {"fit_score": 50})
 
-    updated = storage.update_history_outcome(entry_id, "オファー", namespace="tester-a")
-
-    assert updated is True
-    assert storage.load_history(namespace="tester-a")[0]["outcome"] == "オファー"
-    # 別namespaceの履歴には存在しないid扱いになる
-    assert storage.update_history_outcome(entry_id, "オファー", namespace="tester-b") is False
+    assert entry["job_title"] == "案件A"
+    assert storage.load_history()[0]["id"] == entry["id"]

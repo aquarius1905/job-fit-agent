@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from app import llm, main, storage
@@ -53,7 +55,8 @@ def test_work_style_ajax_save(isolated_data_dir):
         headers={"X-Requested-With": "fetch"},
     )
     assert res.status_code == 200
-    assert res.json() == {"ok": True}
+    assert res.json()["ok"] is True
+    assert res.json()["work_style"]["rate_min"] == "3000"
     assert storage.load_work_style()["rate_min"] == "3000"
 
 
@@ -110,26 +113,74 @@ def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch, ma
     assert entries[0]["job_title"] == "案件X"
 
 
+def test_evaluate_public_mode_uses_client_submitted_skill_sheet(
+    isolated_data_dir, monkeypatch, make_evaluation
+):
+    """PUBLIC_MODEではサーバーに保存されたスキルシートを使わず、
+    フォームで送られてきた内容（ブラウザのlocalStorage由来）をそのまま使う。"""
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.post(
+        "/evaluate",
+        data={
+            "job_posting_text": "求人票テキスト",
+            "client_skill_sheet": "ブラウザ保存の経歴",
+            "client_work_style_json": json.dumps({"rate_min": "3000"}),
+        },
+    )
+    assert res.status_code == 200
+    assert "42" in res.text
+    # サーバー側には一切保存されない
+    assert storage.load_skill_sheet() is None
+    assert storage.load_history() == []
+
+
+def test_evaluate_public_mode_without_client_skill_sheet_redirects(
+    isolated_data_dir, monkeypatch
+):
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+    res = client.post(
+        "/evaluate", data={"job_posting_text": "求人票"}, follow_redirects=False
+    )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/skill-sheet"
+
+
+def test_evaluate_public_mode_embeds_history_entry_for_client_storage(
+    isolated_data_dir, monkeypatch, make_evaluation
+):
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.post(
+        "/evaluate",
+        data={
+            "job_title": "案件X",
+            "job_posting_text": "求人票テキスト",
+            "client_skill_sheet": "ブラウザ保存の経歴",
+        },
+    )
+    assert res.status_code == 200
+    assert "window.__jobfitHistoryEntry" in res.text
+    assert '"job_title": "\\u6848\\u4ef6X"' in res.text or "案件X" in res.text
+
+
 def test_evaluate_blocks_when_public_daily_limit_reached(
     isolated_data_dir, monkeypatch, make_evaluation
 ):
     monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
     monkeypatch.setattr(main, "PUBLIC_MODE", True)
     monkeypatch.setattr(main, "PUBLIC_DAILY_EVALUATE_LIMIT", 1)
-    local_client = TestClient(app)
-    local_client.post("/skill-sheet", data={"manual_text": "経歴"})
 
-    res1 = local_client.post("/evaluate", data={"job_posting_text": "求人票1"})
+    data = {"job_posting_text": "求人票1", "client_skill_sheet": "経歴"}
+    res1 = client.post("/evaluate", data=data)
     assert res1.status_code == 200
     assert "42" in res1.text
 
-    res2 = local_client.post("/evaluate", data={"job_posting_text": "求人票2"})
+    res2 = client.post("/evaluate", data={**data, "job_posting_text": "求人票2"})
     assert res2.status_code == 200
     assert "本日の利用上限に達しました" in res2.text
-
-    # 上限到達後はClaude APIを呼ばず、履歴も増えない
-    namespace = local_client.cookies.get("job_fit_tester", "")
-    assert len(storage.load_history(namespace)) == 1
 
 
 def test_evaluate_not_limited_when_public_mode_off(
@@ -230,6 +281,143 @@ def test_history_sort_by_score(isolated_data_dir):
     res = client.get("/history?sort=score")
     assert res.status_code == 200
     assert res.text.index("高スコア案件") < res.text.index("低スコア案件")
+
+
+def test_history_public_mode_renders_empty_shell(isolated_data_dir, monkeypatch):
+    """PUBLIC_MODEでは履歴はサーバーに無いので、GET /historyは空の状態を返す
+    （実際のエントリはブラウザ側のJSが/history/renderに投げて差し込む）。"""
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.get("/history")
+    assert res.status_code == 200
+    assert "まだ判定履歴がありません" in res.text
+    assert "案件A" not in res.text
+
+
+def test_history_render_endpoint_renders_posted_entries_without_saving(isolated_data_dir):
+    entries = [
+        {
+            "id": "1",
+            "timestamp": "2026-09-01T00:00:00+00:00",
+            "job_title": "ブラウザ保存の案件",
+            "job_posting_text": "求人票",
+            "evaluation": {
+                "fit_score": 77,
+                "fit_label": "要検討",
+                "required_skills": [],
+                "work_style_fit": [],
+                "concerns": [],
+                "questions_to_ask": [],
+                "application_letter": "応募文",
+            },
+            "outcome": "",
+            "outcome_reason": "",
+        }
+    ]
+    res = client.post(
+        "/history/render",
+        data={"history_json": json.dumps(entries), "page": "1", "sort": "date"},
+    )
+    assert res.status_code == 200
+    assert "ブラウザ保存の案件" in res.text
+    # サーバー側には一切保存されない
+    assert storage.load_history() == []
+
+
+def test_history_render_endpoint_paginates_and_sorts(isolated_data_dir):
+    entries = [
+        {
+            "id": str(i),
+            "timestamp": "2026-09-01T00:00:00+00:00",
+            "job_title": f"案件{i}",
+            "job_posting_text": "求人票",
+            "evaluation": {
+                "fit_score": i,
+                "fit_label": "要検討",
+                "required_skills": [],
+                "work_style_fit": [],
+                "concerns": [],
+                "questions_to_ask": [],
+                "application_letter": "応募文",
+            },
+            "outcome": "",
+            "outcome_reason": "",
+        }
+        for i in range(12)
+    ]
+    res = client.post(
+        "/history/render",
+        data={"history_json": json.dumps(entries), "page": "1", "sort": "score"},
+    )
+    assert res.status_code == 200
+    assert res.text.count('class="history-item"') == 10
+    assert res.text.index("案件11") < res.text.index("案件10")
+
+
+def test_history_render_endpoint_ignores_invalid_json(isolated_data_dir):
+    res = client.post(
+        "/history/render",
+        data={"history_json": "not json", "page": "1", "sort": "date"},
+    )
+    assert res.status_code == 200
+    assert "まだ判定履歴がありません" in res.text
+
+
+def test_history_render_endpoint_filters_out_malformed_entries(isolated_data_dir):
+    """localStorageの中身が壊れていても(evaluation欠落、非dict要素、不正なtimestamp等)、
+    500にならず該当エントリだけを無視して描画すること。"""
+    valid_entry = {
+        "id": "ok",
+        "timestamp": "2026-09-01T00:00:00+00:00",
+        "job_title": "正常な案件",
+        "job_posting_text": "求人票",
+        "evaluation": {
+            "fit_score": 80,
+            "fit_label": "要検討",
+            "required_skills": [],
+            "work_style_fit": [],
+            "concerns": [],
+            "questions_to_ask": [],
+            "application_letter": "応募文",
+        },
+        "outcome": "",
+        "outcome_reason": "",
+    }
+    malformed = [
+        1,
+        "not-a-dict",
+        {"id": "no-evaluation", "timestamp": "2026-09-01T00:00:00+00:00"},
+        {"id": "bad-fit-score", "timestamp": "2026-09-01T00:00:00+00:00", "evaluation": {"fit_score": "N/A"}},
+        {"id": "bad-timestamp", "timestamp": "not-a-date", "evaluation": {"fit_score": 50}},
+        {"id": "missing-timestamp", "evaluation": {"fit_score": 50}},
+    ]
+    entries = [valid_entry, *malformed]
+
+    res = client.post(
+        "/history/render",
+        data={"history_json": json.dumps(entries), "page": "1", "sort": "date"},
+    )
+    assert res.status_code == 200
+    assert "正常な案件" in res.text
+    assert res.text.count('class="history-item"') == 1
+
+
+def test_set_history_outcome_blocked_in_public_mode(history_entry_id, monkeypatch):
+    """PUBLIC_MODEでは履歴はサーバーに保存されないので、このエンドポイントは
+    サーバー側の共有ファイルを一切書き換えてはいけない。"""
+    entry_id = history_entry_id
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.post(
+        f"/history/{entry_id}/outcome",
+        data={"outcome": "オファー"},
+        headers={"X-Requested-With": "fetch"},
+    )
+    assert res.status_code == 404
+    assert res.json()["ok"] is False
+    # サーバー側のデータは変更されない
+    assert storage.load_history()[0]["outcome"] == ""
 
 
 def test_set_history_outcome_ajax(history_entry_id):
@@ -388,82 +576,3 @@ def test_history_page_shows_entry_declined_badge_distinct_from_rejected(history_
     assert res.status_code == 200
     assert 'outcome-badge declined"' in res.text
     assert 'outcome-badge rejected"' not in res.text
-
-
-def test_join_sets_cookie_and_redirects(isolated_data_dir):
-    res = client.get("/join", params={"t": "tester-a"}, follow_redirects=False)
-    assert res.status_code == 307
-    assert res.headers["location"] == "/"
-    assert res.cookies["job_fit_tester"] == "tester-a"
-
-
-def test_join_rejects_invalid_token_without_setting_cookie(isolated_data_dir):
-    res = client.get("/join", params={"t": "../../etc"}, follow_redirects=False)
-    assert res.status_code == 307
-    assert "job_fit_tester" not in res.cookies
-
-
-def test_join_without_token_does_not_set_cookie(isolated_data_dir):
-    res = client.get("/join", follow_redirects=False)
-    assert res.status_code == 307
-    assert "job_fit_tester" not in res.cookies
-
-
-def test_tester_namespace_isolates_skill_sheet_and_history(isolated_data_dir):
-    client_a = TestClient(app)
-    client_a.get("/join", params={"t": "tester-a"})
-    client_b = TestClient(app)
-    client_b.get("/join", params={"t": "tester-b"})
-
-    client_a.post("/skill-sheet", data={"manual_text": "テスターAの経歴"})
-    client_b.post("/skill-sheet", data={"manual_text": "テスターBの経歴"})
-
-    res_a = client_a.get("/skill-sheet")
-    res_b = client_b.get("/skill-sheet")
-    assert "テスターAの経歴" in res_a.text
-    assert "テスターBの経歴" not in res_a.text
-    assert "テスターBの経歴" in res_b.text
-    assert "テスターAの経歴" not in res_b.text
-
-    # cookieなし（自分専用インスタンス）はどちらの影響も受けない
-    assert storage.load_skill_sheet() is None
-
-
-def test_public_mode_auto_assigns_isolated_namespace(isolated_data_dir, monkeypatch):
-    monkeypatch.setattr(main, "PUBLIC_MODE", True)
-
-    client_x = TestClient(app)
-    client_y = TestClient(app)
-
-    res_x = client_x.get("/")
-    assert res_x.status_code == 200
-    assert "job_fit_tester" in res_x.cookies
-
-    res_y = client_y.get("/")
-    assert res_y.cookies["job_fit_tester"] != res_x.cookies["job_fit_tester"]
-
-    client_x.post("/skill-sheet", data={"manual_text": "Xさんの経歴"})
-    client_y.post("/skill-sheet", data={"manual_text": "Yさんの経歴"})
-
-    assert "Xさんの経歴" in client_x.get("/skill-sheet").text
-    assert "Xさんの経歴" not in client_y.get("/skill-sheet").text
-    assert "Yさんの経歴" in client_y.get("/skill-sheet").text
-
-    # 自分専用インスタンス（cookieなしの直接呼び出し）には影響しない
-    assert storage.load_skill_sheet() is None
-
-
-def test_public_mode_off_by_default_does_not_auto_assign(isolated_data_dir):
-    res = client.get("/")
-    assert res.status_code == 200
-    assert "job_fit_tester" not in res.cookies
-
-
-def test_public_mode_join_token_is_not_overwritten_by_auto_assignment(
-    isolated_data_dir, monkeypatch
-):
-    monkeypatch.setattr(main, "PUBLIC_MODE", True)
-
-    res = TestClient(app).get("/join", params={"t": "chosen-token"}, follow_redirects=False)
-
-    assert res.cookies["job_fit_tester"] == "chosen-token"
