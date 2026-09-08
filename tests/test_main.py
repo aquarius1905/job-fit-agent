@@ -420,3 +420,13 @@ def test_public_mode_off_by_default_does_not_auto_assign(isolated_data_dir):
     res = client.get("/")
     assert res.status_code == 200
     assert "job_fit_tester" not in res.cookies
+
+
+def test_public_mode_join_token_is_not_overwritten_by_auto_assignment(
+    isolated_data_dir, monkeypatch
+):
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = TestClient(app).get("/join", params={"t": "chosen-token"}, follow_redirects=False)
+
+    assert res.cookies["job_fit_tester"] == "chosen-token"

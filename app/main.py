@@ -60,7 +60,9 @@ async def ensure_tester_token(request: Request, call_next):
     new_token = None
     if valid:
         request.state.namespace = token
-    elif PUBLIC_MODE:
+    elif PUBLIC_MODE and request.url.path != "/join":
+        # /joinは自前でCookieを発行するため、ここで自動発行すると
+        # ミドルウェアの発行がその後で上書きしてしまい、指定したトークンが無視される。
         new_token = secrets.token_urlsafe(8)
         request.state.namespace = new_token
     else:
