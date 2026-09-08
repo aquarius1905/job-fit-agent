@@ -105,6 +105,15 @@ function wireHistoryContent(container) {
         select.dataset.savedValue = outcome;
         reasonInput.dataset.savedValue = reason;
         errorEl.hidden = true;
+
+        // 匿名の利用統計（結果の種類とスコアのみ。内容は一切送らない）。
+        // 「未定」に戻した場合は送らない。
+        if (outcome) {
+          var telemetryData = new FormData();
+          telemetryData.append('outcome', outcome);
+          telemetryData.append('fit_score', control.dataset.fitScore);
+          postAjax('/telemetry/outcome', telemetryData).catch(function () {});
+        }
         return;
       }
 

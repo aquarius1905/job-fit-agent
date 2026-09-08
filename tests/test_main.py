@@ -187,6 +187,102 @@ def test_evaluate_public_mode_embeds_history_entry_for_client_storage(
     assert '"job_title": "\\u6848\\u4ef6X"' in res.text or "案件X" in res.text
 
 
+def test_evaluate_public_mode_logs_anonymous_telemetry(
+    isolated_data_dir, monkeypatch, make_evaluation
+):
+    """判定が成功したら、内容を含まない匿名の利用統計（スコアと訪問者ハッシュのみ）が
+    1件記録されること。"""
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation(fit_score=77))
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    client.post(
+        "/evaluate",
+        data={"job_posting_text": "求人票テキスト", "client_skill_sheet": "経歴"},
+    )
+
+    lines = storage.TELEMETRY_PATH.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["event"] == "evaluate"
+    assert entry["fit_score"] == 77
+    assert entry["visitor_hash"]
+
+
+def test_evaluate_not_public_mode_logs_no_telemetry(isolated_data_dir, monkeypatch, make_evaluation):
+    client.post("/skill-sheet", data={"manual_text": "経歴"})
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
+    monkeypatch.setattr(main, "PUBLIC_MODE", False)
+
+    client.post("/evaluate", data={"job_posting_text": "求人票テキスト"})
+
+    assert not storage.TELEMETRY_PATH.exists()
+
+
+def test_telemetry_outcome_logs_anonymous_entry_in_public_mode(isolated_data_dir, monkeypatch):
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.post(
+        "/telemetry/outcome",
+        data={"outcome": "オファー", "fit_score": "85"},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True}
+
+    lines = storage.TELEMETRY_PATH.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["event"] == "outcome"
+    assert entry["outcome"] == "オファー"
+    assert entry["fit_score"] == 85
+    assert entry["visitor_hash"]
+
+
+def test_telemetry_outcome_rejects_unknown_outcome_value(isolated_data_dir, monkeypatch):
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.post(
+        "/telemetry/outcome",
+        data={"outcome": "検討中", "fit_score": "50"},
+    )
+    assert res.status_code == 400
+    assert not storage.TELEMETRY_PATH.exists()
+
+
+def test_telemetry_outcome_disabled_outside_public_mode(isolated_data_dir, monkeypatch):
+    monkeypatch.setattr(main, "PUBLIC_MODE", False)
+
+    res = client.post(
+        "/telemetry/outcome",
+        data={"outcome": "オファー", "fit_score": "85"},
+    )
+    assert res.status_code == 404
+    assert not storage.TELEMETRY_PATH.exists()
+
+
+def test_telemetry_outcome_uses_cf_connecting_ip_header(isolated_data_dir, monkeypatch):
+    """Cloudflare Tunnel経由では素の接続元IPが常にローカルアドレスになるため、
+    CF-Connecting-IPヘッダーがあればそちらを訪問者IPとして使うこと。"""
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res1 = client.post(
+        "/telemetry/outcome",
+        data={"outcome": "オファー", "fit_score": "85"},
+        headers={"CF-Connecting-IP": "203.0.113.5"},
+    )
+    res2 = client.post(
+        "/telemetry/outcome",
+        data={"outcome": "オファー", "fit_score": "85"},
+        headers={"CF-Connecting-IP": "203.0.113.5"},
+    )
+    assert res1.status_code == 200
+    assert res2.status_code == 200
+
+    lines = storage.TELEMETRY_PATH.read_text(encoding="utf-8").strip().splitlines()
+    hash1 = json.loads(lines[0])["visitor_hash"]
+    hash2 = json.loads(lines[1])["visitor_hash"]
+    assert hash1 == hash2
+
+
 def test_evaluate_blocks_when_public_daily_limit_reached(
     isolated_data_dir, monkeypatch, make_evaluation
 ):

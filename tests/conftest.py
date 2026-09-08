@@ -12,6 +12,8 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "WORK_STYLE_PATH", data_dir / "work_style.json")
     monkeypatch.setattr(storage, "HISTORY_PATH", data_dir / "history.jsonl")
     monkeypatch.setattr(storage, "PUBLIC_USAGE_PATH", data_dir / "public_usage.json")
+    monkeypatch.setattr(storage, "TELEMETRY_PATH", data_dir / "telemetry.jsonl")
+    monkeypatch.setattr(storage, "TELEMETRY_SALT_PATH", data_dir / "telemetry_salt.txt")
     return data_dir
 
 

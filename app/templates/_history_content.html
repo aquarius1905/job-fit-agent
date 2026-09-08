@@ -29,7 +29,7 @@
   </summary>
   <div class="history-body">
     {% if e.id %}
-    <div class="outcome-control" data-entry-id="{{ e.id }}">
+    <div class="outcome-control" data-entry-id="{{ e.id }}" data-fit-score="{{ e.evaluation.fit_score }}">
       <label>
         選考結果:
         <select class="outcome-select">

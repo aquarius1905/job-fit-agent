@@ -166,3 +166,47 @@ def test_append_history_returns_the_written_entry(isolated_data_dir):
 
     assert entry["job_title"] == "案件A"
     assert storage.load_history()[0]["id"] == entry["id"]
+
+
+def test_hash_visitor_is_deterministic_for_same_input(isolated_data_dir):
+    h1 = storage.hash_visitor("203.0.113.1", "Mozilla/5.0")
+    h2 = storage.hash_visitor("203.0.113.1", "Mozilla/5.0")
+    assert h1 == h2
+
+
+def test_hash_visitor_differs_for_different_ip(isolated_data_dir):
+    h1 = storage.hash_visitor("203.0.113.1", "Mozilla/5.0")
+    h2 = storage.hash_visitor("203.0.113.2", "Mozilla/5.0")
+    assert h1 != h2
+
+
+def test_hash_visitor_does_not_leak_raw_ip(isolated_data_dir):
+    h = storage.hash_visitor("203.0.113.1", "Mozilla/5.0")
+    assert "203.0.113.1" not in h
+
+
+def test_hash_visitor_salt_persists_across_calls(isolated_data_dir):
+    """ソルトファイルが一度作られたら、以後同じ値が使われ続けること
+    （サーバー再起動をまたいでもハッシュの一貫性が保たれる前提）。"""
+    storage.hash_visitor("203.0.113.1", "Mozilla/5.0")
+    assert storage.TELEMETRY_SALT_PATH.exists()
+    saved_salt = storage.TELEMETRY_SALT_PATH.read_text(encoding="utf-8")
+
+    h_before = storage.hash_visitor("203.0.113.9", "curl/8.0")
+    assert storage.TELEMETRY_SALT_PATH.read_text(encoding="utf-8") == saved_salt
+    h_after = storage.hash_visitor("203.0.113.9", "curl/8.0")
+    assert h_before == h_after
+
+
+def test_append_telemetry_writes_only_given_fields(isolated_data_dir):
+    storage.append_telemetry("evaluate", fit_score=85, visitor_hash="abc123")
+
+    lines = storage.TELEMETRY_PATH.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["event"] == "evaluate"
+    assert entry["fit_score"] == 85
+    assert entry["visitor_hash"] == "abc123"
+    assert "timestamp" in entry
+    # スキルシート・求人票等の内容フィールドは一切存在しない
+    assert set(entry.keys()) == {"timestamp", "event", "fit_score", "visitor_hash"}

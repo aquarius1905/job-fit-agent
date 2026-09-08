@@ -94,6 +94,14 @@ def is_ajax(request: Request) -> bool:
     return request.headers.get("x-requested-with") == "fetch"
 
 
+def _visitor_ip(request: Request) -> str:
+    """訪問者の実IPを取得する。Cloudflare Tunnel経由だとrequest.client.hostは
+    常にトンネルのローカル接続元になってしまうため、CF-Connecting-IPを優先する。"""
+    return request.headers.get("cf-connecting-ip") or (
+        request.client.host if request.client else ""
+    )
+
+
 def ajax_or_redirect(
     request: Request, json_data: dict, redirect_url: str, status_code: int = 200
 ) -> JSONResponse | RedirectResponse:
@@ -244,6 +252,15 @@ async def evaluate(
                 title = job_title or "(タイトル未入力)"
                 if PUBLIC_MODE:
                     history_entry = storage.build_history_entry(title, posting_text, result)
+                    visitor_hash = storage.hash_visitor(
+                        _visitor_ip(request), request.headers.get("user-agent", "")
+                    )
+                    await run_in_threadpool(
+                        storage.append_telemetry,
+                        "evaluate",
+                        fit_score=result.get("fit_score"),
+                        visitor_hash=visitor_hash,
+                    )
                 else:
                     try:
                         storage.append_history(title, posting_text, result)
@@ -368,3 +385,23 @@ async def set_history_outcome(request: Request, entry_id: str, outcome: str = Fo
         )
 
     return ajax_or_redirect(request, {"ok": True}, "/history")
+
+
+@app.post("/telemetry/outcome")
+async def telemetry_outcome(request: Request, outcome: str = Form(""), fit_score: int = Form(...)):
+    """PUBLIC_MODEで、選考結果を記録した際に匿名の利用統計を1件追記するだけの
+    エンドポイント。内容（スキルシート・求人票・応募文等）は一切受け取らない。"""
+    if not PUBLIC_MODE:
+        return JSONResponse({"ok": False}, status_code=404)
+    if outcome and outcome not in OUTCOME_OPTIONS:
+        return JSONResponse({"ok": False}, status_code=400)
+
+    visitor_hash = storage.hash_visitor(_visitor_ip(request), request.headers.get("user-agent", ""))
+    await run_in_threadpool(
+        storage.append_telemetry,
+        "outcome",
+        outcome=outcome,
+        fit_score=fit_score,
+        visitor_hash=visitor_hash,
+    )
+    return JSONResponse({"ok": True})

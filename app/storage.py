@@ -7,8 +7,10 @@ PUBLIC_MODE（お試し公開用インスタンス）では、スキルシート
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
+import secrets
 import tempfile
 import uuid
 from datetime import UTC, datetime
@@ -19,6 +21,8 @@ SKILL_SHEET_PATH = DATA_DIR / "skill_sheet.txt"
 WORK_STYLE_PATH = DATA_DIR / "work_style.json"
 HISTORY_PATH = DATA_DIR / "history.jsonl"
 PUBLIC_USAGE_PATH = DATA_DIR / "public_usage.json"
+TELEMETRY_PATH = DATA_DIR / "telemetry.jsonl"
+TELEMETRY_SALT_PATH = DATA_DIR / "telemetry_salt.txt"
 
 
 def _ensure_parent(path: Path) -> None:
@@ -151,6 +155,45 @@ def increment_public_usage(limit: int, today: str) -> bool:
             return True
         finally:
             fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def _get_or_create_telemetry_salt() -> str:
+    """匿名利用統計のハッシュ化に使うソルトを取得する。なければ生成して保存する。
+
+    このソルト自体は誰かを特定する情報ではなく、同じIP+User-Agentが毎回同じ
+    ハッシュ値になるようにするための固定値（トライアル期間を通じて再訪判定の
+    一貫性を保つため、サーバー再起動をまたいで永続化する）。
+    """
+    if TELEMETRY_SALT_PATH.exists():
+        return TELEMETRY_SALT_PATH.read_text(encoding="utf-8").strip()
+    salt = secrets.token_hex(16)
+    _ensure_parent(TELEMETRY_SALT_PATH)
+    TELEMETRY_SALT_PATH.write_text(salt, encoding="utf-8")
+    return salt
+
+
+def hash_visitor(ip: str, user_agent: str) -> str:
+    """IPアドレスとUser-Agentから、元に戻せない訪問者の目安ハッシュを作る。
+
+    生のIPアドレスは一切保存しない。あくまで大まかな再訪判定にのみ使う
+    （同一回線の複数人での共有、回線切り替え等により精度は粗い）。
+    """
+    salt = _get_or_create_telemetry_salt()
+    digest = hashlib.sha256(f"{salt}:{ip}:{user_agent}".encode()).hexdigest()
+    return digest[:16]
+
+
+def append_telemetry(event: str, **fields: object) -> None:
+    """個人・内容を一切含まない匿名の利用統計を追記する。
+
+    PUBLIC_MODEでの利用傾向（実際に使われた回数、再訪の目安、判定スコアと
+    選考結果の相関）を把握するためだけに使う。スキルシート・求人票・応募文等の
+    内容は絶対に含めないこと。
+    """
+    _ensure_parent(TELEMETRY_PATH)
+    entry = {"timestamp": datetime.now(UTC).isoformat(), "event": event, **fields}
+    with TELEMETRY_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _atomic_write_jsonl(entries: list[dict], path: Path) -> None:
