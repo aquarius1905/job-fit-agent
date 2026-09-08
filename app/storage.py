@@ -17,6 +17,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SKILL_SHEET_PATH = DATA_DIR / "skill_sheet.txt"
 WORK_STYLE_PATH = DATA_DIR / "work_style.json"
 HISTORY_PATH = DATA_DIR / "history.jsonl"
+PUBLIC_USAGE_PATH = DATA_DIR / "public_usage.json"
 
 
 def _paths_for(namespace: str) -> tuple[Path, Path, Path]:
@@ -114,6 +115,29 @@ def update_history_outcome(
         return False
 
     _atomic_write_jsonl(entries, path)
+    return True
+
+
+def increment_public_usage(limit: int, today: str) -> bool:
+    """PUBLIC_MODEでの1日あたりのClaude API呼び出し回数を管理する（全利用者共通）。
+
+    上限未満なら回数を1増やしてTrueを返す。上限に達していれば増やさずFalseを返す。
+    JST日付が変わったらカウントは自動的にリセットされる。
+    """
+    path = PUBLIC_USAGE_PATH
+    data = {"date": today, "count": 0}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            data = {"date": today, "count": 0}
+    if data.get("date") != today:
+        data = {"date": today, "count": 0}
+    if data["count"] >= limit:
+        return False
+    data["count"] += 1
+    _ensure_parent(path)
+    path.write_text(json.dumps(data), encoding="utf-8")
     return True
 
 

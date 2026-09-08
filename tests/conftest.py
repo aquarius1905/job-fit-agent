@@ -11,6 +11,7 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "SKILL_SHEET_PATH", data_dir / "skill_sheet.txt")
     monkeypatch.setattr(storage, "WORK_STYLE_PATH", data_dir / "work_style.json")
     monkeypatch.setattr(storage, "HISTORY_PATH", data_dir / "history.jsonl")
+    monkeypatch.setattr(storage, "PUBLIC_USAGE_PATH", data_dir / "public_usage.json")
     return data_dir
 
 

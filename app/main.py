@@ -29,6 +29,10 @@ _TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 # 自分専用ローカル環境では未設定のままにし、従来通りdata/直下を使う。
 PUBLIC_MODE = os.environ.get("PUBLIC_MODE", "") == "1"
 
+# PUBLIC_MODE時のみ有効な、全利用者合計の1日あたりClaude API呼び出し上限。
+# 想定外のアクセス集中でAPI費用が青天井になるのを防ぐためのセーフティネット。
+PUBLIC_DAILY_EVALUATE_LIMIT = 20
+
 
 def get_namespace(request: Request) -> str:
     """お試し利用者用のトークン（Cookie経由）をデータの保存先namespaceとして返す。
@@ -273,6 +277,10 @@ async def evaluate(
     if not error:
         if not posting_text.strip():
             error = "求人票のテキストを入力するかファイルを選択してください。"
+        elif PUBLIC_MODE and not storage.increment_public_usage(
+            PUBLIC_DAILY_EVALUATE_LIMIT, datetime.now(JST).strftime("%Y-%m-%d")
+        ):
+            error = "本日の利用上限に達しました。日本時間の日付が変わるまでお待ちください。"
         else:
             try:
                 result = await run_in_threadpool(

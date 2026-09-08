@@ -69,6 +69,18 @@ def test_update_history_outcome_saves_reason(two_history_entries):
     assert by_id[entry_id]["outcome_reason"] == "他候補者との比較の上、お見送り"
 
 
+def test_increment_public_usage_allows_until_limit(isolated_data_dir):
+    assert storage.increment_public_usage(2, "2026-09-08") is True
+    assert storage.increment_public_usage(2, "2026-09-08") is True
+    assert storage.increment_public_usage(2, "2026-09-08") is False
+
+
+def test_increment_public_usage_resets_on_new_day(isolated_data_dir):
+    assert storage.increment_public_usage(1, "2026-09-08") is True
+    assert storage.increment_public_usage(1, "2026-09-08") is False
+    assert storage.increment_public_usage(1, "2026-09-09") is True
+
+
 def test_update_history_outcome_defaults_reason_to_empty(two_history_entries):
     entry_id = storage.load_history()[0]["id"]  # 案件B
 

@@ -110,6 +110,43 @@ def test_evaluate_calls_llm_and_saves_history(isolated_data_dir, monkeypatch, ma
     assert entries[0]["job_title"] == "案件X"
 
 
+def test_evaluate_blocks_when_public_daily_limit_reached(
+    isolated_data_dir, monkeypatch, make_evaluation
+):
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+    monkeypatch.setattr(main, "PUBLIC_DAILY_EVALUATE_LIMIT", 1)
+    local_client = TestClient(app)
+    local_client.post("/skill-sheet", data={"manual_text": "経歴"})
+
+    res1 = local_client.post("/evaluate", data={"job_posting_text": "求人票1"})
+    assert res1.status_code == 200
+    assert "42" in res1.text
+
+    res2 = local_client.post("/evaluate", data={"job_posting_text": "求人票2"})
+    assert res2.status_code == 200
+    assert "本日の利用上限に達しました" in res2.text
+
+    # 上限到達後はClaude APIを呼ばず、履歴も増えない
+    namespace = local_client.cookies.get("job_fit_tester", "")
+    assert len(storage.load_history(namespace)) == 1
+
+
+def test_evaluate_not_limited_when_public_mode_off(
+    isolated_data_dir, monkeypatch, make_evaluation
+):
+    client.post("/skill-sheet", data={"manual_text": "経歴"})
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
+    monkeypatch.setattr(main, "PUBLIC_MODE", False)
+    monkeypatch.setattr(main, "PUBLIC_DAILY_EVALUATE_LIMIT", 1)
+
+    client.post("/evaluate", data={"job_posting_text": "求人票1"})
+    res = client.post("/evaluate", data={"job_posting_text": "求人票2"})
+    assert res.status_code == 200
+    assert "42" in res.text
+    assert len(storage.load_history()) == 2
+
+
 def test_evaluate_shows_distinct_error_when_history_save_fails(
     isolated_data_dir, monkeypatch, make_evaluation
 ):
