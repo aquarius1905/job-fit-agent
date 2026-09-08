@@ -202,6 +202,8 @@ async def evaluate(
             work_style = json.loads(client_work_style_json) if client_work_style_json else {}
         except json.JSONDecodeError:
             work_style = {}
+        if not isinstance(work_style, dict):
+            work_style = {}
     else:
         skill_sheet = storage.load_skill_sheet()
         work_style = storage.load_work_style()
@@ -225,8 +227,10 @@ async def evaluate(
     if not error:
         if not posting_text.strip():
             error = "求人票のテキストを入力するかファイルを選択してください。"
-        elif PUBLIC_MODE and not storage.increment_public_usage(
-            PUBLIC_DAILY_EVALUATE_LIMIT, datetime.now(JST).strftime("%Y-%m-%d")
+        elif PUBLIC_MODE and not await run_in_threadpool(
+            storage.increment_public_usage,
+            PUBLIC_DAILY_EVALUATE_LIMIT,
+            datetime.now(JST).strftime("%Y-%m-%d"),
         ):
             error = "本日の利用上限に達しました。日本時間の日付が変わるまでお待ちください。"
         else:

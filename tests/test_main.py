@@ -136,6 +136,27 @@ def test_evaluate_public_mode_uses_client_submitted_skill_sheet(
     assert storage.load_history() == []
 
 
+def test_evaluate_public_mode_ignores_non_dict_work_style_json(
+    isolated_data_dir, monkeypatch, make_evaluation
+):
+    """client_work_style_jsonが構文上は正しいJSONでもdictでなければ（配列・数値等）、
+    500にならず空のwork_styleとして扱われること。通常のUI操作では発生しないが、
+    直接APIを叩かれた場合の防御として。"""
+    monkeypatch.setattr(llm, "evaluate", lambda *a, **k: make_evaluation())
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+
+    res = client.post(
+        "/evaluate",
+        data={
+            "job_posting_text": "求人票テキスト",
+            "client_skill_sheet": "ブラウザ保存の経歴",
+            "client_work_style_json": json.dumps([1, 2, 3]),
+        },
+    )
+    assert res.status_code == 200
+    assert "42" in res.text
+
+
 def test_evaluate_public_mode_without_client_skill_sheet_redirects(
     isolated_data_dir, monkeypatch
 ):

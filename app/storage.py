@@ -6,6 +6,7 @@ PUBLIC_MODE（お試し公開用インスタンス）では、スキルシート
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import tempfile
@@ -115,22 +116,41 @@ def increment_public_usage(limit: int, today: str) -> bool:
 
     上限未満なら回数を1増やしてTrueを返す。上限に達していれば増やさずFalseを返す。
     JST日付が変わったらカウントは自動的にリセットされる。
+
+    呼び出し元（アプリ側）でスレッドプール実行にすることに加え、複数ワーカー
+    プロセスで動かした場合でも読み取り→更新→書き込みの間に他プロセスが
+    割り込んで上限を超過させることがないよう、ファイルロックで排他制御する。
     """
     path = PUBLIC_USAGE_PATH
-    data = {"date": today, "count": 0}
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            data = {"date": today, "count": 0}
-    if data.get("date") != today:
-        data = {"date": today, "count": 0}
-    if data["count"] >= limit:
-        return False
-    data["count"] += 1
     _ensure_parent(path)
-    path.write_text(json.dumps(data), encoding="utf-8")
-    return True
+    lock_path = path.with_name(path.name + ".lock")
+
+    with open(lock_path, "w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            data = {"date": today, "count": 0}
+            if path.exists():
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    data = {"date": today, "count": 0}
+            if data.get("date") != today:
+                data = {"date": today, "count": 0}
+            if data["count"] >= limit:
+                return False
+            data["count"] += 1
+
+            fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=".public-usage-", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(json.dumps(data))
+                Path(tmp_path).replace(path)
+            except BaseException:
+                Path(tmp_path).unlink(missing_ok=True)
+                raise
+            return True
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def _atomic_write_jsonl(entries: list[dict], path: Path) -> None:

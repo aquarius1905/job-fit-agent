@@ -1,8 +1,18 @@
 import json
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 
 import pytest
 
 from app import storage
+
+
+def _increment_at(path_str: str, limit: int, today: str) -> bool:
+    """複数プロセスでの排他制御をテストするためのヘルパー。
+    ProcessPoolExecutorで別プロセスとして実行されるため、pickle可能な
+    モジュールトップレベル関数として定義する。"""
+    storage.PUBLIC_USAGE_PATH = Path(path_str)
+    return storage.increment_public_usage(limit, today)
 
 
 @pytest.fixture
@@ -79,6 +89,24 @@ def test_increment_public_usage_resets_on_new_day(isolated_data_dir):
     assert storage.increment_public_usage(1, "2026-09-08") is True
     assert storage.increment_public_usage(1, "2026-09-08") is False
     assert storage.increment_public_usage(1, "2026-09-09") is True
+
+
+def test_increment_public_usage_is_safe_across_processes(isolated_data_dir):
+    """複数ワーカープロセスから同時に呼ばれても、上限を超えて許可されないこと
+    （ファイルロックなしだと、複数プロセスが同時にcountを読んで両方許可してしまう）。"""
+    limit = 10
+    today = "2026-09-08"
+    path_str = str(storage.PUBLIC_USAGE_PATH)
+
+    with ProcessPoolExecutor(max_workers=8) as executor:
+        results = list(
+            executor.map(_increment_at, [path_str] * 30, [limit] * 30, [today] * 30)
+        )
+
+    # ちょうどlimit回だけ許可され、残りは全て拒否されること
+    assert sum(results) == limit
+    data = json.loads(Path(path_str).read_text(encoding="utf-8"))
+    assert data["count"] == limit
 
 
 def test_update_history_outcome_defaults_reason_to_empty(two_history_entries):
