@@ -90,29 +90,44 @@ def load_history() -> list[dict]:
 
 
 def update_history_outcome(entry_id: str, outcome: str, reason: str = "") -> bool:
-    """指定したidの履歴エントリのoutcome/outcome_reasonを更新する。該当エントリがあればTrueを返す。"""
+    """指定したidの履歴エントリのoutcome/outcome_reasonを更新する。該当エントリがあればTrueを返す。
+
+    読み取り→更新→書き込みの間に他のリクエスト（例: ブラウザの複数タブ）が割り込んで
+    互いの更新を上書きしてしまわないよう、ファイルロックで排他制御する。
+    """
     if not HISTORY_PATH.exists():
         return False
 
-    entries = []
-    found = False
-    with HISTORY_PATH.open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            entry = json.loads(line)
-            if entry.get("id") == entry_id:
-                entry["outcome"] = outcome
-                entry["outcome_reason"] = reason
-                found = True
-            entries.append(entry)
+    _ensure_parent(HISTORY_PATH)
+    lock_path = HISTORY_PATH.with_name(HISTORY_PATH.name + ".lock")
 
-    if not found:
-        return False
+    with open(lock_path, "w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            if not HISTORY_PATH.exists():
+                return False
 
-    _atomic_write_jsonl(entries, HISTORY_PATH)
-    return True
+            entries = []
+            found = False
+            with HISTORY_PATH.open(encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    entry = json.loads(line)
+                    if entry.get("id") == entry_id:
+                        entry["outcome"] = outcome
+                        entry["outcome_reason"] = reason
+                        found = True
+                    entries.append(entry)
+
+            if not found:
+                return False
+
+            _atomic_write_jsonl(entries, HISTORY_PATH)
+            return True
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def increment_public_usage(limit: int, today: str) -> bool:

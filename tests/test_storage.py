@@ -15,6 +15,12 @@ def _increment_at(path_str: str, limit: int, today: str) -> bool:
     return storage.increment_public_usage(limit, today)
 
 
+def _update_outcome_at(path_str: str, entry_id: str, outcome: str) -> bool:
+    """複数プロセスでの排他制御をテストするためのヘルパー（update_history_outcome用）。"""
+    storage.HISTORY_PATH = Path(path_str)
+    return storage.update_history_outcome(entry_id, outcome)
+
+
 @pytest.fixture
 def two_history_entries(isolated_data_dir):
     """案件A・案件Bの2件を追加する（案件Bが新しい）。"""
@@ -148,6 +154,30 @@ def test_update_history_outcome_leaves_original_file_intact_on_write_failure(
     assert storage.HISTORY_PATH.read_text(encoding="utf-8") == original_content
     # 一時ファイルも残っていない
     assert list(storage.DATA_DIR.glob(".history-*.tmp")) == []
+
+
+def test_update_history_outcome_is_safe_across_processes(isolated_data_dir):
+    """複数プロセスから同時に別々のエントリを更新しても、互いの更新が
+    消えないこと（ロックなしのread-modify-writeだと後勝ちで失われうる）。"""
+    entry_ids = [
+        storage.append_history(f"案件{i}", "求人票", {"fit_score": i})["id"] for i in range(8)
+    ]
+    path_str = str(storage.HISTORY_PATH)
+
+    with ProcessPoolExecutor(max_workers=8) as executor:
+        results = list(
+            executor.map(
+                _update_outcome_at,
+                [path_str] * len(entry_ids),
+                entry_ids,
+                ["オファー"] * len(entry_ids),
+            )
+        )
+
+    assert all(results)
+    entries_by_id = {e["id"]: e for e in storage.load_history()}
+    for entry_id in entry_ids:
+        assert entries_by_id[entry_id]["outcome"] == "オファー"
 
 
 def test_build_history_entry_does_not_write_to_disk(isolated_data_dir):

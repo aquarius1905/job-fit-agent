@@ -499,6 +499,36 @@ def test_history_render_endpoint_ignores_invalid_json(isolated_data_dir):
     assert "まだ判定履歴がありません" in res.text
 
 
+def test_history_render_endpoint_handles_null_optional_fields_gracefully(isolated_data_dir):
+    """evaluation.required_skills等がnull（_is_valid_history_entryは形自体は正しい
+    ので通す）でも、テンプレート側で空リスト扱いにして500にならず描画できること。"""
+    entries = [
+        {
+            "id": "1",
+            "timestamp": "2026-09-01T00:00:00+00:00",
+            "job_title": "壊れたエントリ",
+            "job_posting_text": "求人票",
+            "evaluation": {
+                "fit_score": 60,
+                "fit_label": "要検討",
+                "required_skills": None,
+                "work_style_fit": None,
+                "concerns": None,
+                "questions_to_ask": None,
+                "application_letter": "応募文",
+            },
+            "outcome": "",
+            "outcome_reason": "",
+        }
+    ]
+    res = client.post(
+        "/history/render",
+        data={"history_json": json.dumps(entries), "page": "1", "sort": "date"},
+    )
+    assert res.status_code == 200
+    assert "壊れたエントリ" in res.text
+
+
 def test_history_render_endpoint_filters_out_malformed_entries(isolated_data_dir):
     """localStorageの中身が壊れていても(evaluation欠落、非dict要素、不正なtimestamp等)、
     500にならず該当エントリだけを無視して描画すること。"""

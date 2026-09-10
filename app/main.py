@@ -150,7 +150,7 @@ async def skill_sheet_upload(
     if file is not None and file.filename:
         content = await file.read()
         try:
-            text = parsing.extract_text(file.filename, content)
+            text = await run_in_threadpool(parsing.extract_text, file.filename, content)
         except ValueError as e:
             if is_ajax(request):
                 return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
@@ -228,7 +228,9 @@ async def evaluate(
     if job_posting_file is not None and job_posting_file.filename:
         content = await job_posting_file.read()
         try:
-            posting_text = parsing.extract_text(job_posting_file.filename, content)
+            posting_text = await run_in_threadpool(
+                parsing.extract_text, job_posting_file.filename, content
+            )
         except ValueError as e:
             error = str(e)
 

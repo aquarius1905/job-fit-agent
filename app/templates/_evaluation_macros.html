@@ -1,4 +1,5 @@
 {% macro required_skills_table(required_skills) %}
+{% set required_skills = required_skills or [] %}
 <table class="skill-table">
   <thead>
     <tr><th>区分</th><th>スキル・条件</th><th>判定</th><th>理由</th></tr>
@@ -17,6 +18,7 @@
 {% endmacro %}
 
 {% macro work_style_fit_table(work_style_fit) %}
+{% set work_style_fit = work_style_fit or [] %}
 <table class="skill-table">
   <thead>
     <tr><th>項目</th><th>希望</th><th>判定</th><th>理由</th></tr>
@@ -35,6 +37,7 @@
 {% endmacro %}
 
 {% macro concerns_list(concerns, empty_text=none) %}
+{% set concerns = concerns or [] %}
 {% if not concerns and empty_text %}
 <p class="muted">{{ empty_text }}</p>
 {% else %}
@@ -45,6 +48,7 @@
 {% endmacro %}
 
 {% macro questions_list(questions) %}
+{% set questions = questions or [] %}
 <ul class="concerns">
   {% for q in questions %}<li>{{ q }}</li>{% endfor %}
 </ul>
