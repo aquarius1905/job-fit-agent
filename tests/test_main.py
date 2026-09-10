@@ -1,4 +1,5 @@
 import json
+import re
 
 from fastapi.testclient import TestClient
 
@@ -183,8 +184,12 @@ def test_evaluate_public_mode_embeds_history_entry_for_client_storage(
         },
     )
     assert res.status_code == 200
-    assert "window.__jobfitHistoryEntry" in res.text
-    assert '"job_title": "\\u6848\\u4ef6X"' in res.text or "案件X" in res.text
+
+    match = re.search(r"window\.__jobfitHistoryEntry = (.+?);", res.text)
+    assert match, "history_entryの埋め込みscriptが見つからない"
+    embedded = json.loads(match.group(1))
+    assert embedded["job_title"] == "案件X"
+    assert embedded["evaluation"]["fit_score"] == 42
 
 
 def test_evaluate_public_mode_logs_anonymous_telemetry(
@@ -261,26 +266,39 @@ def test_telemetry_outcome_disabled_outside_public_mode(isolated_data_dir, monke
 
 def test_telemetry_outcome_uses_cf_connecting_ip_header(isolated_data_dir, monkeypatch):
     """Cloudflare Tunnel経由では素の接続元IPが常にローカルアドレスになるため、
-    CF-Connecting-IPヘッダーがあればそちらを訪問者IPとして使うこと。"""
-    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+    CF-Connecting-IPヘッダーがあればそちらを訪問者IPとして使うこと。
 
-    res1 = client.post(
+    TestClientのrequest.client.hostは常に固定文字列"testclient"になるため、
+    単に「同じヘッダーなら同じハッシュ」を見るだけでは、ヘッダーを完全に無視して
+    フォールバック側に倒しても偶然パスしてしまう。ヘッダーあり/なしでハッシュが
+    変わること、かつその値がそれぞれ想定通りのIPから計算した値と一致することまで見る。
+    """
+    monkeypatch.setattr(main, "PUBLIC_MODE", True)
+    user_agent = "pytest-agent/1.0"
+
+    res_with_header = client.post(
         "/telemetry/outcome",
         data={"outcome": "オファー", "fit_score": "85"},
-        headers={"CF-Connecting-IP": "203.0.113.5"},
+        headers={"CF-Connecting-IP": "203.0.113.5", "User-Agent": user_agent},
     )
-    res2 = client.post(
+    res_without_header = client.post(
         "/telemetry/outcome",
         data={"outcome": "オファー", "fit_score": "85"},
-        headers={"CF-Connecting-IP": "203.0.113.5"},
+        headers={"User-Agent": user_agent},
     )
-    assert res1.status_code == 200
-    assert res2.status_code == 200
+    assert res_with_header.status_code == 200
+    assert res_without_header.status_code == 200
 
     lines = storage.TELEMETRY_PATH.read_text(encoding="utf-8").strip().splitlines()
-    hash1 = json.loads(lines[0])["visitor_hash"]
-    hash2 = json.loads(lines[1])["visitor_hash"]
-    assert hash1 == hash2
+    hash_with_header = json.loads(lines[0])["visitor_hash"]
+    hash_without_header = json.loads(lines[1])["visitor_hash"]
+
+    # ヘッダーの有無で異なる訪問者として扱われる（＝ヘッダーが実際に参照されている）こと
+    assert hash_with_header != hash_without_header
+    # ヘッダーがある場合は、そのIPを直接指定した場合と一致すること
+    assert hash_with_header == storage.hash_visitor("203.0.113.5", user_agent)
+    # ヘッダーがない場合は、TestClientの固定接続元("testclient")にフォールバックすること
+    assert hash_without_header == storage.hash_visitor("testclient", user_agent)
 
 
 def test_evaluate_blocks_when_public_daily_limit_reached(
@@ -674,7 +692,9 @@ def test_history_page_shows_outcome_badge(history_entry_id):
 
     res = client.get("/history")
     assert res.status_code == 200
-    assert "オファー" in res.text
+    # ドロップダウンの選択肢文字列と偶然一致しないよう、バッジ自身にしか
+    # 現れないクラス名込みで検証する。
+    assert 'outcome-badge accepted"' in res.text
 
 
 def test_history_page_shows_offer_declined_badge_distinct_from_rejected(history_entry_id):
