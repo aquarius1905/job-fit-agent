@@ -23,12 +23,38 @@ pytestmark = [
     ),
 ]
 
+EVAL_RETRIES = 3
+
+
+def _eval_with_retries(fn, retries: int = EVAL_RETRIES) -> None:
+    """LLMの出力ブレを考慮し、最大retries回試して1回でも成功すればOKとする。
+
+    実際に本番で発生した規模のブレ（同じ求人票を3回判定してactual_yearsが
+    2年→2.5年→1.7年動く等）を踏まえたもの。本当の回帰（プロンプト・コードの
+    バグ）なら毎回失敗するはずなので、検知力は落とさずにブレによる誤検知だけを吸収する。
+    """
+    last_error: AssertionError | None = None
+    for _ in range(retries):
+        try:
+            fn()
+            return
+        except AssertionError as e:
+            last_error = e
+    raise AssertionError(f"{retries}回試して毎回失敗した（ブレではなく回帰の可能性が高い）: {last_error}")
+
 
 def _find_skill(result: dict, keyword: str) -> dict:
     for skill in result["required_skills"]:
         if keyword in skill["skill"]:
             return skill
     raise AssertionError(f"'{keyword}' を含むスキル項目が結果に見つからない: {result['required_skills']}")
+
+
+def _find_work_style_item(result: dict, keyword: str) -> dict:
+    for item in result["work_style_fit"]:
+        if keyword in item["item"]:
+            return item
+    raise AssertionError(f"'{keyword}' を含むwork_style_fit項目が結果に見つからない: {result['work_style_fit']}")
 
 
 def test_unrelated_domain_experience_is_not_credited_toward_year_requirement():
@@ -38,32 +64,40 @@ def test_unrelated_domain_experience_is_not_credited_toward_year_requirement():
     ユーザーからの指摘を受けてプロンプト・コード側の閾値強制ロジックを
     追加した経緯がある。回帰検知のためのeval。
     """
-    skill_sheet = (
-        "C++/C#での業務系デスクトップアプリケーション開発が約10年（2012年〜2022年）。"
-        "Web関連の実務は2022年9月頃（ESG/SDGsプラットフォーム開発）から2026年現在まで約4年。"
-        "Vue.js/Reactでのフロントエンド開発、FastAPI/Django REST frameworkでのバックエンド"
-        "API開発を複数案件で経験。"
-    )
-    job_posting = "【必須】WEBアプリのフロントエンド・バックエンド共に7年程度の開発経験。"
 
-    result = llm.evaluate(skill_sheet, "", job_posting)
+    def _run():
+        skill_sheet = (
+            "C++/C#での業務系デスクトップアプリケーション開発が約10年（2012年〜2022年）。"
+            "Web関連の実務は2022年9月頃（ESG/SDGsプラットフォーム開発）から2026年現在まで約4年。"
+            "Vue.js/Reactでのフロントエンド開発、FastAPI/Django REST frameworkでのバックエンド"
+            "API開発を複数案件で経験。"
+        )
+        job_posting = "【必須】WEBアプリのフロントエンド・バックエンド共に7年程度の開発経験。"
 
-    skill = _find_skill(result, "7年")
-    assert skill["meets"] == "×", skill["reason"]
+        result = llm.evaluate(skill_sheet, "", job_posting)
+
+        skill = _find_skill(result, "7年")
+        assert skill["meets"] == "×", skill["reason"]
+
+    _eval_with_retries(_run)
 
 
 def test_sufficient_matching_years_are_credited():
     """求人要件を満たす実務年数がある場合は○と判定されること。"""
-    skill_sheet = (
-        "Pythonでのバックエンド開発を2018年から2026年現在まで一貫して担当（約8年）。"
-        "FastAPI/Django REST frameworkでのAPI開発、AWS上での運用経験あり。"
-    )
-    job_posting = "【必須】Pythonでのバックエンド開発経験3年以上。"
 
-    result = llm.evaluate(skill_sheet, "", job_posting)
+    def _run():
+        skill_sheet = (
+            "Pythonでのバックエンド開発を2018年から2026年現在まで一貫して担当（約8年）。"
+            "FastAPI/Django REST frameworkでのAPI開発、AWS上での運用経験あり。"
+        )
+        job_posting = "【必須】Pythonでのバックエンド開発経験3年以上。"
 
-    skill = _find_skill(result, "Python")
-    assert skill["meets"] == "○", skill["reason"]
+        result = llm.evaluate(skill_sheet, "", job_posting)
+
+        skill = _find_skill(result, "Python")
+        assert skill["meets"] == "○", skill["reason"]
+
+    _eval_with_retries(_run)
 
 
 def test_or_condition_is_not_split_into_separate_must_items():
@@ -73,21 +107,25 @@ def test_or_condition_is_not_split_into_separate_must_items():
     指摘を受け、選択肢ごとに分解せず1つのrequired_skills項目としてまとめる
     ようプロンプトを修正した経緯がある。回帰検知のためのeval。
     """
-    skill_sheet = "AWSでのインフラ構築・運用の実務経験が3年。GCP・Azureの実務経験はなし。"
-    job_posting = "【必須】以下いずれかの実務経験\n・AWS\n・GCP\n・Azure"
 
-    result = llm.evaluate(skill_sheet, "", job_posting)
+    def _run():
+        skill_sheet = "AWSでのインフラ構築・運用の実務経験が3年。GCP・Azureの実務経験はなし。"
+        job_posting = "【必須】以下いずれかの実務経験\n・AWS\n・GCP\n・Azure"
 
-    cloud_items = [
-        s
-        for s in result["required_skills"]
-        if any(k in s["skill"] for k in ("AWS", "GCP", "Azure"))
-    ]
-    assert len(cloud_items) == 1, (
-        "OR条件が個別のMUST項目に分解されている: "
-        f"{result['required_skills']}"
-    )
-    assert cloud_items[0]["meets"] == "○", cloud_items[0]["reason"]
+        result = llm.evaluate(skill_sheet, "", job_posting)
+
+        cloud_items = [
+            s
+            for s in result["required_skills"]
+            if any(k in s["skill"] for k in ("AWS", "GCP", "Azure"))
+        ]
+        assert len(cloud_items) == 1, (
+            "OR条件が個別のMUST項目に分解されている: "
+            f"{result['required_skills']}"
+        )
+        assert cloud_items[0]["meets"] == "○", cloud_items[0]["reason"]
+
+    _eval_with_retries(_run)
 
 
 def test_matching_rate_is_not_flagged_as_concern_or_penalized():
@@ -99,34 +137,40 @@ def test_matching_rate_is_not_flagged_as_concern_or_penalized():
     work_style_fit側はmatches=trueなのに、concernsで「経験・スキル水準に対してかなり
     低め」と指摘され、fit_scoreが42まで下がっていた）の回帰検知のためのeval。
     """
-    skill_sheet = "Pythonでのバックエンド開発経験10年。FastAPI/Djangoでのバックエンド開発多数。"
-    work_style = "希望単価（時給）: 4000円/時 〜 上限指定なし"
-    job_posting = (
-        "【必須】Pythonでのバックエンド開発経験3年以上。\n"
-        "【勤務地】フルリモート。\n"
-        "【報酬】月額単価320,000〜400,000円（月80h/週20h稼働の場合）、時間単価4,000〜5,000円/時程度。"
-    )
 
-    result = llm.evaluate(skill_sheet, work_style, job_posting)
-
-    rate_items = [w for w in result["work_style_fit"] if "単価" in w["item"]]
-    assert rate_items, result["work_style_fit"]
-    assert rate_items[0]["matches"] is True, rate_items[0]["reason"]
-
-    # 「稼働時間が短いため月額の絶対額は控えめ」といった、時間単価とは別の正当な指摘は許容する。
-    # 禁止したいのは、経験・スキル水準を理由に単価そのもの（時間単価水準）を否定する主張。
-    for concern in result["concerns"]:
-        has_experience_basis = "経験" in concern or "スキル水準" in concern
-        has_rate_topic = "単価" in concern or "報酬" in concern
-        has_negative_judgement = "低" in concern or "ミスマッチ" in concern or "不足" in concern
-        assert not (has_experience_basis and has_rate_topic and has_negative_judgement), (
-            "単価が希望条件を満たしているのに、経験・スキル水準を理由に"
-            f"単価を否定する懸念が挙げられている: {concern}"
+    def _run():
+        skill_sheet = "Pythonでのバックエンド開発経験10年。FastAPI/Djangoでのバックエンド開発多数。"
+        work_style = "希望単価（時給）: 4000円/時 〜 上限指定なし"
+        job_posting = (
+            "【必須】Pythonでのバックエンド開発経験3年以上。\n"
+            "【勤務地】フルリモート。\n"
+            "【報酬】月額単価320,000〜400,000円（月80h/週20h稼働の場合）、時間単価4,000〜5,000円/時程度。"
         )
 
-    assert result["fit_score"] >= 70, (
-        f"必須スキルを満たし単価も条件通りなのに、fit_scoreが不当に低い: {result}"
-    )
+        result = llm.evaluate(skill_sheet, work_style, job_posting)
+
+        rate_item = _find_work_style_item(result, "単価")
+        assert rate_item["matches"] is True, rate_item["reason"]
+
+        # 「稼働時間が短いため月額の絶対額は控えめ」といった、時間単価とは別の正当な指摘は許容する。
+        # 禁止したいのは、経験・スキル水準を理由に単価そのもの（時間単価水準）を否定する主張。
+        # 言い換え表現も拾えるよう、否定的判断の語彙は広めに取る。
+        for concern in result["concerns"]:
+            has_experience_basis = "経験" in concern or "スキル水準" in concern
+            has_rate_topic = "単価" in concern or "報酬" in concern
+            has_negative_judgement = any(
+                k in concern for k in ("低", "ミスマッチ", "不足", "見合わ", "不当", "妥当でな")
+            )
+            assert not (has_experience_basis and has_rate_topic and has_negative_judgement), (
+                "単価が希望条件を満たしているのに、経験・スキル水準を理由に"
+                f"単価を否定する懸念が挙げられている: {concern}"
+            )
+
+        assert result["fit_score"] >= 70, (
+            f"必須スキルを満たし単価も条件通りなのに、fit_scoreが不当に低い: {result}"
+        )
+
+    _eval_with_retries(_run)
 
 
 def test_broad_weekly_days_preference_matches_reduced_hours_posting():
@@ -137,33 +181,49 @@ def test_broad_weekly_days_preference_matches_reduced_hours_posting():
     実際に発生したバグ: reasonでは「応募者の希望範囲（週1〜5日）には収まる」と
     書きながら、matchesはfalseにするという自己矛盾が起きていた。回帰検知のためのeval。
     """
-    skill_sheet = "Pythonでのバックエンド開発経験10年。"
-    work_style = "希望稼働日数（週あたり、許容できる範囲）: 週1日、週2日、週3日、週4日、週5日(フルタイム)"
-    job_posting = (
-        "【必須】Pythonでのバックエンド開発経験3年以上。\n"
-        "【稼働時間】月80h/週20h稼働（週1〜2日相当）。\n"
-        "【勤務地】フルリモート。"
-    )
 
-    result = llm.evaluate(skill_sheet, work_style, job_posting)
+    def _run():
+        skill_sheet = "Pythonでのバックエンド開発経験10年。"
+        work_style = "希望稼働日数（週あたり、許容できる範囲）: 週1日、週2日、週3日、週4日、週5日(フルタイム)"
+        job_posting = (
+            "【必須】Pythonでのバックエンド開発経験3年以上。\n"
+            "【稼働時間】月80h/週20h稼働（週1〜2日相当）。\n"
+            "【勤務地】フルリモート。"
+        )
 
-    days_items = [w for w in result["work_style_fit"] if "稼働日数" in w["item"]]
-    assert days_items, result["work_style_fit"]
-    assert days_items[0]["matches"] is True, days_items[0]["reason"]
+        result = llm.evaluate(skill_sheet, work_style, job_posting)
+
+        days_item = _find_work_style_item(result, "稼働日数")
+        assert days_item["matches"] is True, days_item["reason"]
+
+    _eval_with_retries(_run)
 
 
 def test_explicit_onsite_requirement_conflicts_with_full_remote_preference():
-    """フルリモート希望と、求人票の明確な出社必須条件との不一致が検知されること。"""
-    skill_sheet = "Pythonでのバックエンド開発経験5年。"
-    work_style = "出社に関する希望（許容できる働き方）: フルリモート"
-    job_posting = (
-        "【勤務地】東京本社に週5日フルタイム出社必須。リモートワーク不可。"
-        "【必須】Pythonでのバックエンド開発経験3年以上。"
-    )
+    """フルリモート希望と、求人票の明確な出社必須条件との不一致が検知されること。
 
-    result = llm.evaluate(skill_sheet, work_style, job_posting)
+    実際に本番で発生したバグではないが、基本的な整合性チェックとしてのeval。
+    """
 
-    remote_items = [w for w in result["work_style_fit"] if "リモート" in w["item"]]
-    assert remote_items, result["work_style_fit"]
-    assert remote_items[0]["matches"] is False, remote_items[0]["reason"]
-    assert result["concerns"], "出社必須とフルリモート希望の不一致が懸念点に挙がっていない"
+    def _run():
+        skill_sheet = "Pythonでのバックエンド開発経験5年。"
+        work_style = "出社に関する希望（許容できる働き方）: フルリモート"
+        job_posting = (
+            "【勤務地】東京本社に週5日フルタイム出社必須。リモートワーク不可。"
+            "【必須】Pythonでのバックエンド開発経験3年以上。"
+        )
+
+        result = llm.evaluate(skill_sheet, work_style, job_posting)
+
+        remote_item = _find_work_style_item(result, "リモート")
+        assert remote_item["matches"] is False, remote_item["reason"]
+
+        # concernsが空でないだけでなく、実際に出社/リモートの不一致について
+        # 言及しているかを確認する（無関係な懸念点だけが挙がっていても通ってしまわないように）。
+        concern_texts = " / ".join(result["concerns"])
+        assert "リモート" in concern_texts or "出社" in concern_texts, (
+            "出社必須とフルリモート希望の不一致について具体的に言及した懸念点が"
+            f"挙がっていない: {result['concerns']}"
+        )
+
+    _eval_with_retries(_run)
