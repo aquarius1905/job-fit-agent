@@ -7,16 +7,10 @@
 </div>
 {% endif %}
 
-{% if entries or total_pages > 1 %}
-<div class="sort-toggle">
-  <span class="muted">並び順:</span>
-  <a href="/history?sort=date" data-sort="date" class="{{ 'active' if sort == 'date' else '' }}">日付順</a>
-  <a href="/history?sort=score" data-sort="score" class="{{ 'active' if sort == 'score' else '' }}">スコア順</a>
-</div>
-{% endif %}
+{% include "_history_search.html" %}
 
 {% if not entries %}
-<p class="muted">まだ判定履歴がありません。</p>
+<p class="muted">{{ 'この検索条件に一致する履歴がありません。' if query else 'まだ判定履歴がありません。' }}</p>
 {% endif %}
 
 {% for e in entries %}
@@ -66,8 +60,8 @@
 
 {% if total_pages > 1 %}
 <nav class="pagination">
-  <a href="/history?page={{ page - 1 }}&sort={{ sort }}" data-page="{{ page - 1 }}" class="{{ 'disabled' if page <= 1 else '' }}">← 前へ</a>
+  <a href="/history?page={{ page - 1 }}&sort={{ sort }}{{ extra_qs }}" data-page="{{ page - 1 }}" class="{{ 'disabled' if page <= 1 else '' }}">← 前へ</a>
   <span class="pagination-status">{{ page }} / {{ total_pages }}</span>
-  <a href="/history?page={{ page + 1 }}&sort={{ sort }}" data-page="{{ page + 1 }}" class="{{ 'disabled' if page >= total_pages else '' }}">次へ →</a>
+  <a href="/history?page={{ page + 1 }}&sort={{ sort }}{{ extra_qs }}" data-page="{{ page + 1 }}" class="{{ 'disabled' if page >= total_pages else '' }}">次へ →</a>
 </nav>
 {% endif %}

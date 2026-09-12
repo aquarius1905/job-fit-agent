@@ -418,6 +418,123 @@ def test_history_sort_by_score(isolated_data_dir):
     assert res.text.index("高スコア案件") < res.text.index("低スコア案件")
 
 
+def test_history_search_filters_by_job_title(isolated_data_dir):
+    storage.append_history("Pythonバックエンド案件", "求人票", {"fit_score": 50})
+    storage.append_history("フロントエンド案件", "求人票", {"fit_score": 60})
+
+    res = client.get("/history?q=Python")
+    assert res.status_code == 200
+    assert "Pythonバックエンド案件" in res.text
+    assert "フロントエンド案件" not in res.text
+
+
+def test_history_search_is_case_insensitive(isolated_data_dir):
+    storage.append_history("Pythonバックエンド案件", "求人票", {"fit_score": 50})
+
+    res = client.get("/history?q=python")
+    assert "Pythonバックエンド案件" in res.text
+
+
+def test_history_search_no_match_shows_message(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+
+    res = client.get("/history?q=存在しない案件名")
+    assert "この検索条件に一致する履歴がありません" in res.text
+    assert "案件A" not in res.text
+
+
+def test_history_search_does_not_affect_rate_estimate(isolated_data_dir, make_evaluation):
+    for i in range(3):
+        storage.append_history(
+            f"案件{i}",
+            "求人票",
+            make_evaluation(
+                fit_score=80,
+                posted_rate={"stated_text": "70万円/月", "hourly_min": 4000, "hourly_max": 4500},
+            ),
+        )
+
+    res = client.get("/history?q=存在しないキーワード")
+    # 検索結果は空だが、単価推定は全履歴から算出されたままであること
+    assert "推定適正単価" in res.text
+    assert "4,000円" in res.text
+
+
+def test_history_search_filters_by_outcome(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    storage.append_history("案件B", "求人票", {"fit_score": 60})
+    entries = storage.load_history()
+    storage.update_history_outcome(entries[0]["id"], "オファー")  # 案件B
+
+    res = client.get("/history?outcome=オファー")
+    assert "案件B" in res.text
+    assert "案件A" not in res.text
+
+
+def test_history_search_filters_by_multiple_outcomes(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    storage.append_history("案件B", "求人票", {"fit_score": 60})
+    storage.append_history("案件C", "求人票", {"fit_score": 70})
+    entries = storage.load_history()
+    storage.update_history_outcome(entries[0]["id"], "オファー")  # 案件C
+    storage.update_history_outcome(entries[1]["id"], "オファー辞退")  # 案件B
+    # 案件Aは未定のまま
+
+    res = client.get("/history?outcome=オファー&outcome=オファー辞退")
+    assert "案件C" in res.text
+    assert "案件B" in res.text
+    assert "案件A" not in res.text
+
+
+def test_history_search_filters_by_undecided_outcome(isolated_data_dir):
+    """「未定」（outcomeが空文字）はvalue=""のチェックボックスとして検索対象にできる。"""
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    storage.append_history("案件B", "求人票", {"fit_score": 60})
+    entries = storage.load_history()
+    storage.update_history_outcome(entries[0]["id"], "オファー")  # 案件B
+
+    res = client.get("/history?outcome=")
+    assert "案件A" in res.text
+    assert "案件B" not in res.text
+
+
+def test_history_search_no_outcome_selected_shows_all(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+    storage.append_history("案件B", "求人票", {"fit_score": 60})
+
+    res = client.get("/history")
+    assert "案件A" in res.text
+    assert "案件B" in res.text
+
+
+def test_history_search_filters_by_score_range(isolated_data_dir):
+    storage.append_history("低スコア案件", "求人票", {"fit_score": 30})
+    storage.append_history("中スコア案件", "求人票", {"fit_score": 60})
+    storage.append_history("高スコア案件", "求人票", {"fit_score": 90})
+
+    res = client.get("/history?score_min=50&score_max=80")
+    assert "中スコア案件" in res.text
+    assert "低スコア案件" not in res.text
+    assert "高スコア案件" not in res.text
+
+
+def test_history_search_score_min_only(isolated_data_dir):
+    storage.append_history("低スコア案件", "求人票", {"fit_score": 30})
+    storage.append_history("高スコア案件", "求人票", {"fit_score": 90})
+
+    res = client.get("/history?score_min=50")
+    assert "高スコア案件" in res.text
+    assert "低スコア案件" not in res.text
+
+
+def test_history_search_ignores_malformed_score_bounds(isolated_data_dir):
+    storage.append_history("案件A", "求人票", {"fit_score": 50})
+
+    res = client.get("/history?score_min=abc&score_max=")
+    assert res.status_code == 200
+    assert "案件A" in res.text
+
+
 def test_history_public_mode_renders_empty_shell(isolated_data_dir, monkeypatch):
     """PUBLIC_MODEでは履歴はサーバーに無いので、GET /historyは空の状態を返す
     （実際のエントリはブラウザ側のJSが/history/renderに投げて差し込む）。"""
@@ -488,6 +605,88 @@ def test_history_render_endpoint_paginates_and_sorts(isolated_data_dir):
     assert res.status_code == 200
     assert res.text.count('class="history-item"') == 10
     assert res.text.index("案件11") < res.text.index("案件10")
+
+
+def test_history_render_endpoint_filters_by_query(isolated_data_dir):
+    entries = [
+        {
+            "id": str(i),
+            "timestamp": "2026-09-01T00:00:00+00:00",
+            "job_title": title,
+            "job_posting_text": "求人票",
+            "evaluation": {
+                "fit_score": i,
+                "fit_label": "要検討",
+                "required_skills": [],
+                "work_style_fit": [],
+                "concerns": [],
+                "questions_to_ask": [],
+                "application_letter": "応募文",
+            },
+            "outcome": "",
+            "outcome_reason": "",
+        }
+        for i, title in enumerate(["Pythonバックエンド案件", "フロントエンド案件"])
+    ]
+    res = client.post(
+        "/history/render",
+        data={"history_json": json.dumps(entries), "page": "1", "sort": "date", "q": "Python"},
+    )
+    assert res.status_code == 200
+    assert "Pythonバックエンド案件" in res.text
+    assert "フロントエンド案件" not in res.text
+
+
+def test_history_render_endpoint_filters_by_outcome_and_score_range(isolated_data_dir):
+    entries = [
+        {
+            "id": "1",
+            "timestamp": "2026-09-01T00:00:00+00:00",
+            "job_title": "案件A",
+            "job_posting_text": "求人票",
+            "evaluation": {
+                "fit_score": 50,
+                "fit_label": "要検討",
+                "required_skills": [],
+                "work_style_fit": [],
+                "concerns": [],
+                "questions_to_ask": [],
+                "application_letter": "応募文",
+            },
+            "outcome": "",
+            "outcome_reason": "",
+        },
+        {
+            "id": "2",
+            "timestamp": "2026-09-01T00:00:00+00:00",
+            "job_title": "案件B",
+            "job_posting_text": "求人票",
+            "evaluation": {
+                "fit_score": 90,
+                "fit_label": "応募推奨",
+                "required_skills": [],
+                "work_style_fit": [],
+                "concerns": [],
+                "questions_to_ask": [],
+                "application_letter": "応募文",
+            },
+            "outcome": "オファー",
+            "outcome_reason": "",
+        },
+    ]
+    res = client.post(
+        "/history/render",
+        data={
+            "history_json": json.dumps(entries),
+            "page": "1",
+            "sort": "date",
+            "outcome": "オファー",
+            "score_min": "80",
+        },
+    )
+    assert res.status_code == 200
+    assert "案件B" in res.text
+    assert "案件A" not in res.text
 
 
 def test_history_render_endpoint_ignores_invalid_json(isolated_data_dir):

@@ -154,27 +154,72 @@ function wireHistoryContent(container) {
     container.querySelectorAll('.sort-toggle a[data-sort]').forEach(function (a) {
       a.addEventListener('click', function (e) {
         e.preventDefault();
-        renderHistoryFragment(1, a.dataset.sort);
+        var params = paramsFromLocation();
+        params.page = 1;
+        params.sort = a.dataset.sort;
+        renderHistoryFragment(params);
       });
     });
     container.querySelectorAll('.pagination a[data-page]').forEach(function (a) {
       if (a.classList.contains('disabled')) return;
       a.addEventListener('click', function (e) {
         e.preventDefault();
-        var currentSort = new URLSearchParams(location.search).get('sort') || 'date';
-        renderHistoryFragment(a.dataset.page, currentSort);
+        var params = paramsFromLocation();
+        params.page = a.dataset.page;
+        renderHistoryFragment(params);
       });
     });
+    var searchForm = container.querySelector('.history-search');
+    if (searchForm) {
+      searchForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var formData = new FormData(searchForm);
+        renderHistoryFragment({
+          page: 1,
+          sort: formData.get('sort'),
+          q: formData.get('q'),
+          outcome: formData.getAll('outcome'),
+          score_min: formData.get('score_min'),
+          score_max: formData.get('score_max'),
+        });
+      });
+    }
   }
+}
+
+// サーバーとやり取りする絞り込み条件のうち、単一値のフィールド名
+// （outcomeだけは複数値なので別扱い）。
+var HISTORY_SINGLE_VALUE_FIELDS = ['q', 'score_min', 'score_max'];
+
+// 履歴一覧のURL(?page=&sort=&q=&outcome=&score_min=&score_max=)から
+// 現在の絞り込み条件を読み取る。PUBLIC_MODEでのソート/ページ送りクリック時に、
+// 検索条件を引き継ぐために使う。
+function paramsFromLocation() {
+  var params = new URLSearchParams(location.search);
+  var result = {
+    page: params.get('page') || 1,
+    sort: params.get('sort') || 'date',
+    outcome: params.getAll('outcome'),
+  };
+  HISTORY_SINGLE_VALUE_FIELDS.forEach(function (key) {
+    result[key] = params.get(key) || '';
+  });
+  return result;
 }
 
 // PUBLIC_MODEでのみ使う。ブラウザに保存された履歴を/history/renderに送り、
 // 返ってきたHTML断片で#history-contentを差し替える。
-function renderHistoryFragment(page, sort) {
+function renderHistoryFragment(params) {
   var formData = new FormData();
   formData.append('history_json', JSON.stringify(JobFitStorage.getHistory()));
-  formData.append('page', page);
-  formData.append('sort', sort);
+  formData.append('page', params.page);
+  formData.append('sort', params.sort);
+  HISTORY_SINGLE_VALUE_FIELDS.forEach(function (key) {
+    formData.append(key, params[key] || '');
+  });
+  (params.outcome || []).forEach(function (o) {
+    formData.append('outcome', o);
+  });
 
   return postAjax('/history/render', formData)
     .then(function (res) {
@@ -186,8 +231,19 @@ function renderHistoryFragment(page, sort) {
       container.innerHTML = html;
       wireHistoryContent(container);
       var url = new URL(location.href);
-      url.searchParams.set('page', page);
-      url.searchParams.set('sort', sort);
+      url.searchParams.set('page', params.page);
+      url.searchParams.set('sort', params.sort);
+      HISTORY_SINGLE_VALUE_FIELDS.forEach(function (key) {
+        if (params[key]) {
+          url.searchParams.set(key, params[key]);
+        } else {
+          url.searchParams.delete(key);
+        }
+      });
+      url.searchParams.delete('outcome');
+      (params.outcome || []).forEach(function (o) {
+        url.searchParams.append('outcome', o);
+      });
       history.replaceState(null, '', url.pathname + url.search);
     })
     .catch(function () {

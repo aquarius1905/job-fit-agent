@@ -1,0 +1,36 @@
+{% if entries or query or selected_outcomes or score_min or score_max or total_pages > 1 %}
+<form class="history-search" action="/history" method="get">
+  <p class="history-search-title">絞り込み</p>
+  <input type="search" name="q" value="{{ query }}" placeholder="案件名で検索">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <label class="field">
+    <span class="history-filter-label">選考結果</span>
+    {# 1行目=未定+見送り系3件、2行目=商談以降3件で意図的に分けている。OUTCOME_OPTIONSの件数を変えたらここも見直すこと。 #}
+    <div class="checkbox-group history-outcome-checkboxes">
+      <div class="checkbox-row">
+        <label class="checkbox-item"><input type="checkbox" name="outcome" value="" {% if "" in selected_outcomes %}checked{% endif %}> 未定</label>
+        {% for opt in outcome_options[:3] %}
+        <label class="checkbox-item"><input type="checkbox" name="outcome" value="{{ opt }}" {% if opt in selected_outcomes %}checked{% endif %}> {{ opt }}</label>
+        {% endfor %}
+      </div>
+      <div class="checkbox-row">
+        {% for opt in outcome_options[3:] %}
+        <label class="checkbox-item"><input type="checkbox" name="outcome" value="{{ opt }}" {% if opt in selected_outcomes %}checked{% endif %}> {{ opt }}</label>
+        {% endfor %}
+      </div>
+    </div>
+  </label>
+  <div class="rate-range">
+    <span class="history-filter-label">スコア</span>
+    <input type="number" name="score_min" value="{{ score_min }}" min="0" max="100" placeholder="下限">
+    <span class="rate-sep">〜</span>
+    <input type="number" name="score_max" value="{{ score_max }}" min="0" max="100" placeholder="上限">
+  </div>
+  <button type="submit" class="history-search-submit">検索</button>
+</form>
+<div class="sort-toggle">
+  <span class="muted">並び順:</span>
+  <a href="/history?sort=date{{ extra_qs }}" data-sort="date" class="{{ 'active' if sort == 'date' else '' }}">日付順</a>
+  <a href="/history?sort=score{{ extra_qs }}" data-sort="score" class="{{ 'active' if sort == 'score' else '' }}">スコア順</a>
+</div>
+{% endif %}

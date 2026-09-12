@@ -14,8 +14,7 @@ const OUTCOME_BADGE_CLASSES = {{ outcome_badge_classes | tojson }};
 const OUTCOME_BADGE_DEFAULT_CLASS = {{ outcome_badge_default_class | tojson }};
 
 if (window.JOBFIT_PUBLIC_MODE) {
-  var params = new URLSearchParams(location.search);
-  renderHistoryFragment(params.get('page') || 1, params.get('sort') || 'date');
+  renderHistoryFragment(paramsFromLocation());
 } else {
   wireHistoryContent(document.getElementById('history-content'));
 }

@@ -4,9 +4,10 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Form, Request, UploadFile
+from fastapi import FastAPI, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -287,7 +288,48 @@ async def evaluate(
 HISTORY_PAGE_SIZE = 10
 
 
-def _build_history_view(entries: list[dict], page: int, sort: str) -> dict:
+def _parse_score_bound(value: str) -> int | None:
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _build_history_view(
+    entries: list[dict],
+    page: int,
+    sort: str,
+    query: str = "",
+    outcomes: list[str] | None = None,
+    score_min: str = "",
+    score_max: str = "",
+) -> dict:
+    # 検索件数に関わらず単価推定は全履歴から算出する（検索結果に左右されないように）。
+    rate = rate_estimate.estimate_hourly_rate(entries)
+
+    query = (query or "").strip()
+    q_lower = query.lower()
+    outcomes = outcomes or []
+    min_bound = _parse_score_bound(score_min)
+    max_bound = _parse_score_bound(score_max)
+
+    def _matches(e: dict) -> bool:
+        if q_lower and q_lower not in (e.get("job_title") or "").lower():
+            return False
+        if outcomes and e.get("outcome", "") not in outcomes:
+            return False
+        fit_score = e["evaluation"]["fit_score"]
+        if min_bound is not None and fit_score < min_bound:
+            return False
+        if max_bound is not None and fit_score > max_bound:
+            return False
+        return True
+
+    entries = [e for e in entries if _matches(e)]
+
     if sort == "score":
         entries = sorted(entries, key=lambda e: e["evaluation"]["fit_score"], reverse=True)
     else:
@@ -297,12 +339,28 @@ def _build_history_view(entries: list[dict], page: int, sort: str) -> dict:
     page = min(max(page, 1), total_pages)
     start = (page - 1) * HISTORY_PAGE_SIZE
     page_entries = entries[start : start + HISTORY_PAGE_SIZE]
-    rate = rate_estimate.estimate_hourly_rate(entries)
+
+    # ソート・ページ送りのリンクに絞り込み条件を引き継ぐためのクエリ文字列
+    # （テンプレート側で個別にq/outcome/score_min/score_maxを組み立てる必要がないように、
+    # ここで一度だけ組み立てる）。
+    extra_pairs = [("q", query)] if query else []
+    extra_pairs += [("outcome", o) for o in outcomes]
+    if score_min:
+        extra_pairs.append(("score_min", score_min))
+    if score_max:
+        extra_pairs.append(("score_max", score_max))
+    extra_qs = ("&" + urlencode(extra_pairs)) if extra_pairs else ""
+
     return {
         "entries": page_entries,
         "page": page,
         "total_pages": total_pages,
         "sort": sort,
+        "query": query,
+        "selected_outcomes": outcomes,
+        "score_min": score_min or "",
+        "score_max": score_max or "",
+        "extra_qs": extra_qs,
         "outcome_options": OUTCOME_OPTIONS,
         "rate": rate,
         "rate_min_fit_score": rate_estimate.MIN_FIT_SCORE,
@@ -310,9 +368,17 @@ def _build_history_view(entries: list[dict], page: int, sort: str) -> dict:
 
 
 @app.get("/history", response_class=HTMLResponse)
-def history(request: Request, page: int = 1, sort: str = "date"):
+def history(
+    request: Request,
+    page: int = 1,
+    sort: str = "date",
+    q: str = "",
+    outcome: list[str] = Query([]),
+    score_min: str = "",
+    score_max: str = "",
+):
     entries = [] if PUBLIC_MODE else storage.load_history()
-    context = _build_history_view(entries, page, sort)
+    context = _build_history_view(entries, page, sort, q, outcome, score_min, score_max)
     context.update(
         {
             "outcome_badge_classes": _OUTCOME_BADGE_CLASSES,
@@ -348,6 +414,10 @@ async def history_render(
     history_json: str = Form("[]"),
     page: int = Form(1),
     sort: str = Form("date"),
+    q: str = Form(""),
+    outcome: list[str] = Form([]),
+    score_min: str = Form(""),
+    score_max: str = Form(""),
 ):
     """PUBLIC_MODEで、ブラウザ側(localStorage)の履歴データを受け取って描画するだけの
     ステートレスなエンドポイント。サーバー側には何も保存しない。"""
@@ -359,7 +429,7 @@ async def history_render(
         raw_entries = []
     entries = [e for e in raw_entries if _is_valid_history_entry(e)]
 
-    context = _build_history_view(entries, page, sort)
+    context = _build_history_view(entries, page, sort, q, outcome, score_min, score_max)
     return templates.TemplateResponse(request, "_history_content.html", context)
 
 
