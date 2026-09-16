@@ -210,7 +210,9 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY が設定されていません。.env に設定してください。"
+            "ANTHROPIC_API_KEY が設定されていません。"
+            "ローカル環境では.envに、Cloud Run等にデプロイする場合は"
+            "環境変数またはSecret Managerに設定してください。"
         )
 
     client = Anthropic(api_key=api_key)

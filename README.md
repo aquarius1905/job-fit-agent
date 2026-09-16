@@ -49,6 +49,15 @@ cp .env.example .env  # ANTHROPIC_API_KEY を設定
 
 http://127.0.0.1:8000 を開く。
 
+## Cloud Runへのデプロイ（お試し公開用）
+
+```bash
+./scripts/deploy-cloud-run.sh
+```
+
+`PUBLIC_MODE=1`はDockerfileに固定済み（スキルシート・履歴はブラウザ側保存に切り替わる）。
+`--max-instances=1`など複数インスタンス化できない理由はスクリプト内のコメントを参照。
+
 ## 使い方
 
 1. `/skill-sheet` で自分のスキルシート（.xlsx / .docx / テキスト）と働き方の希望条件（フルリモート希望/出社不可など）を登録する（初回のみ、以後は使い回し）
