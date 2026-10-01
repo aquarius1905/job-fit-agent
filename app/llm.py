@@ -1,154 +1,156 @@
 """Claude APIを使って求人票とスキルシートの適合度を判定する。"""
 from __future__ import annotations
 
+import json
 import os
 
 from anthropic import Anthropic
 
 from app.rate_estimate import HOURS_PER_MONTH
 
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")
 
-_EVALUATION_TOOL = {
-    "name": "submit_evaluation",
-    "description": "求人票とスキルシートを比較した適合度評価結果を提出する",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "fit_score": {
-                "type": "integer",
-                "description": "総合適合度スコア（0〜100）",
-            },
-            "fit_label": {
-                "type": "string",
-                "description": "一言の総合判定（例: 応募推奨 / 要検討 / 見送り推奨）",
-            },
-            "required_skills": {
-                "type": "array",
-                "description": "求人票に書かれている必須・歓迎スキル/条件ごとの充足判定",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "skill": {"type": "string", "description": "スキル・条件名"},
-                        "required": {
-                            "type": "boolean",
-                            "description": "必須(true)か歓迎(false)か",
-                        },
-                        "required_years": {
-                            "type": ["number", "null"],
-                            "description": (
-                                "この項目について求人票が具体的な実務経験年数（「○年以上」「○年程度」等）を"
-                                "指定している場合のみ、その年数（例: 7）。年数の指定がない項目はnull。"
-                            ),
-                        },
-                        "actual_years": {
-                            "type": ["number", "null"],
-                            "description": (
-                                "required_yearsを設定した場合のみ設定。スキルシートに基づく、"
-                                "その技術・領域そのものの実務年数（無関係な別領域の経験は含めない）。"
-                                "算出できない場合は0。required_yearsがnullの項目ではnullでよい。"
-                            ),
-                        },
-                        "meets": {
-                            "type": "string",
-                            "enum": ["○", "△", "×"],
-                            "description": (
-                                "スキルシートの内容から見て満たしているか。"
-                                "○=明確に満たしている、△=関連経験はあるが年数や範囲が明確に不足・不明瞭、"
-                                "×=満たしていない、または判定材料がない"
-                            ),
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "判定理由の短い説明",
-                        },
-                    },
-                    "required": ["skill", "required", "meets", "reason"],
-                },
-            },
-            "work_style_fit": {
-                "type": "array",
-                "description": "働き方の希望条件ごとの、求人内容との合致判定",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "item": {
-                            "type": "string",
-                            "description": "働き方の項目名（例: フルリモート、出社あり、会議多め等）",
-                        },
-                        "preference": {
-                            "type": "string",
-                            "description": "応募者側の希望内容（例: ◯希望 / ×希望しない / どちらでも可）",
-                        },
-                        "matches": {
-                            "type": "boolean",
-                            "description": "求人票に書かれた条件が応募者の希望に合っているか",
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "判定理由の短い説明。求人票に記載がなければその旨を書く",
-                        },
-                    },
-                    "required": ["item", "preference", "matches", "reason"],
-                },
-            },
-            "concerns": {
-                "type": "array",
-                "description": "応募前に確認・注意すべき懸念点",
-                "items": {"type": "string"},
-            },
-            "questions_to_ask": {
-                "type": "array",
-                "description": (
-                    "応募前に案件担当者（エージェント等）に確認したい質問のリスト。"
-                    "特に働き方の希望条件と求人票の記載が一致しない・記載が曖昧な場合に、"
-                    "頻度や条件の詳細を確認するための具体的な質問を含める"
-                    "（例: フルリモート希望だが出社ありと書かれている場合「出社の頻度・エリアを教えてください」）"
-                ),
-                "items": {"type": "string"},
-            },
-            "application_letter": {
-                "type": "string",
-                "description": "この求人にそのまま送れる日本語の応募文（完成形、追記不要なレベル）",
-            },
-            "posted_rate": {
+# structured outputs（output_config.format）で使うため、全objectにadditionalProperties: falseが必要
+_EVALUATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "fit_score": {
+            "type": "integer",
+            "description": "総合適合度スコア（0〜100）",
+        },
+        "fit_label": {
+            "type": "string",
+            "description": "一言の総合判定（例: 応募推奨 / 要検討 / 見送り推奨）",
+        },
+        "required_skills": {
+            "type": "array",
+            "description": "求人票に書かれている必須・歓迎スキル/条件ごとの充足判定",
+            "items": {
                 "type": "object",
-                "description": "求人票に記載されている単価情報。記載がなければ全てnull",
                 "properties": {
-                    "stated_text": {
-                        "type": ["string", "null"],
-                        "description": (
-                            "求人票に書かれている単価表記そのまま"
-                            "（例: 「60万〜80万円/月」「600〜900万円/年」）。記載がなければnull"
-                        ),
+                    "skill": {"type": "string", "description": "スキル・条件名"},
+                    "required": {
+                        "type": "boolean",
+                        "description": "必須(true)か歓迎(false)か",
                     },
-                    "hourly_min": {
+                    "required_years": {
                         "type": ["number", "null"],
                         "description": (
-                            f"時給換算した単価の下限（円）。月額は{HOURS_PER_MONTH}時間、"
-                            f"年額は12で月額換算してから{HOURS_PER_MONTH}時間、"
-                            "日額は8時間で割って換算する。単一額のみの記載ならhourly_maxと同じ値。記載がなければnull"
+                            "この項目について求人票が具体的な実務経験年数（「○年以上」「○年程度」等）を"
+                            "指定している場合のみ、その年数（例: 7）。年数の指定がない項目はnull。"
                         ),
                     },
-                    "hourly_max": {
+                    "actual_years": {
                         "type": ["number", "null"],
-                        "description": "時給換算した単価の上限（円）。換算方法はhourly_minと同じ。記載がなければnull",
+                        "description": (
+                            "required_yearsを設定した場合のみ設定。スキルシートに基づく、"
+                            "その技術・領域そのものの実務年数（無関係な別領域の経験は含めない）。"
+                            "算出できない場合は0。required_yearsがnullの項目ではnullでよい。"
+                        ),
+                    },
+                    "meets": {
+                        "type": "string",
+                        "enum": ["○", "△", "×"],
+                        "description": (
+                            "スキルシートの内容から見て満たしているか。"
+                            "○=明確に満たしている、△=関連経験はあるが年数や範囲が明確に不足・不明瞭、"
+                            "×=満たしていない、または判定材料がない"
+                        ),
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "判定理由の短い説明",
                     },
                 },
-                "required": ["stated_text", "hourly_min", "hourly_max"],
+                "required": ["skill", "required", "meets", "reason"],
+                "additionalProperties": False,
             },
         },
-        "required": [
-            "fit_score",
-            "fit_label",
-            "required_skills",
-            "work_style_fit",
-            "concerns",
-            "questions_to_ask",
-            "application_letter",
-            "posted_rate",
-        ],
+        "work_style_fit": {
+            "type": "array",
+            "description": "働き方の希望条件ごとの、求人内容との合致判定",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "type": "string",
+                        "description": "働き方の項目名（例: フルリモート、出社あり、会議多め等）",
+                    },
+                    "preference": {
+                        "type": "string",
+                        "description": "応募者側の希望内容（例: ◯希望 / ×希望しない / どちらでも可）",
+                    },
+                    "matches": {
+                        "type": "boolean",
+                        "description": "求人票に書かれた条件が応募者の希望に合っているか",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "判定理由の短い説明。求人票に記載がなければその旨を書く",
+                    },
+                },
+                "required": ["item", "preference", "matches", "reason"],
+                "additionalProperties": False,
+            },
+        },
+        "concerns": {
+            "type": "array",
+            "description": "応募前に確認・注意すべき懸念点",
+            "items": {"type": "string"},
+        },
+        "questions_to_ask": {
+            "type": "array",
+            "description": (
+                "応募前に案件担当者（エージェント等）に確認したい質問のリスト。"
+                "特に働き方の希望条件と求人票の記載が一致しない・記載が曖昧な場合に、"
+                "頻度や条件の詳細を確認するための具体的な質問を含める"
+                "（例: フルリモート希望だが出社ありと書かれている場合「出社の頻度・エリアを教えてください」）"
+            ),
+            "items": {"type": "string"},
+        },
+        "application_letter": {
+            "type": "string",
+            "description": "この求人にそのまま送れる日本語の応募文（完成形、追記不要なレベル）",
+        },
+        "posted_rate": {
+            "type": "object",
+            "description": "求人票に記載されている単価情報。記載がなければ全てnull",
+            "properties": {
+                "stated_text": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "求人票に書かれている単価表記そのまま"
+                        "（例: 「60万〜80万円/月」「600〜900万円/年」）。記載がなければnull"
+                    ),
+                },
+                "hourly_min": {
+                    "type": ["number", "null"],
+                    "description": (
+                        f"時給換算した単価の下限（円）。月額は{HOURS_PER_MONTH}時間、"
+                        f"年額は12で月額換算してから{HOURS_PER_MONTH}時間、"
+                        "日額は8時間で割って換算する。単一額のみの記載ならhourly_maxと同じ値。記載がなければnull"
+                    ),
+                },
+                "hourly_max": {
+                    "type": ["number", "null"],
+                    "description": "時給換算した単価の上限（円）。換算方法はhourly_minと同じ。記載がなければnull",
+                },
+            },
+            "required": ["stated_text", "hourly_min", "hourly_max"],
+            "additionalProperties": False,
+        },
     },
+    "required": [
+        "fit_score",
+        "fit_label",
+        "required_skills",
+        "work_style_fit",
+        "concerns",
+        "questions_to_ask",
+        "application_letter",
+        "posted_rate",
+    ],
+    "additionalProperties": False,
 }
 
 _SYSTEM_PROMPT = f"""\
@@ -224,7 +226,7 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
         f"{work_style_text or '(未設定)'}\n\n"
         "## 求人票\n"
         f"{job_posting_text}\n\n"
-        "上記を比較し、submit_evaluation ツールで評価結果を提出してください。"
+        "上記を比較し、評価結果を出力してください。"
     )
 
     response = client.messages.create(
@@ -232,19 +234,24 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
         max_tokens=16000,
         thinking={"type": "adaptive"},
         system=_SYSTEM_PROMPT,
-        tools=[_EVALUATION_TOOL],
-        tool_choice={"type": "tool", "name": "submit_evaluation"},
+        output_config={"format": {"type": "json_schema", "schema": _EVALUATION_SCHEMA}},
         messages=[{"role": "user", "content": user_content}],
     )
 
-    for block in response.content:
-        if block.type == "tool_use" and block.name == "submit_evaluation":
-            result = block.input
-            _enforce_experience_thresholds(result.get("required_skills") or [])
-            _cap_fit_score_for_unmet_conditions(result)
-            return result
+    # refusal・max_tokensで止まった場合は出力がスキーマ通りである保証がない
+    if response.stop_reason != "end_turn":
+        raise RuntimeError(
+            f"Claudeからの評価結果を取得できませんでした（stop_reason: {response.stop_reason}）。"
+        )
 
-    raise RuntimeError("Claudeからの評価結果を取得できませんでした。")
+    text = next((block.text for block in response.content if block.type == "text"), None)
+    if text is None:
+        raise RuntimeError("Claudeからの評価結果を取得できませんでした。")
+
+    result = json.loads(text)
+    _enforce_experience_thresholds(result.get("required_skills") or [])
+    _cap_fit_score_for_unmet_conditions(result)
+    return result
 
 
 def _enforce_experience_thresholds(required_skills: list[dict]) -> None:

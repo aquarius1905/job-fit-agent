@@ -23,7 +23,7 @@
 ## 技術スタック
 
 - Python 3.13 / FastAPI / Jinja2（サーバーサイドレンダリング、フレームワークレスなフロント）
-- Anthropic API（Claude Sonnet 5）。判定結果はプロンプトでJSONを頼んで正規表現でパースするような壊れやすい方式ではなく、tool useを強制（`tool_choice`）してJSON Schema通りの構造化データとして受け取っている
+- Anthropic API（Claude Sonnet 5.5）。判定結果はプロンプトでJSONを頼んで正規表現でパースするような壊れやすい方式ではなく、structured outputs（`output_config.format`）でJSON Schema通りの構造化データとして受け取っている
 - openpyxl / python-docx（Excel・Wordのスキルシートからのテキスト抽出）
 - ruff（lint）
 
