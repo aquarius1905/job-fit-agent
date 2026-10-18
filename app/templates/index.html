@@ -13,6 +13,13 @@
   </div>
 {% endif %}
 
+{% if public_mode %}
+<section class="card" id="demo-card">
+  <p class="muted">自分のスキルシートを登録する前に、サンプルデータでどんな結果が出るか試せます。</p>
+  <button type="button" id="demo-btn">サンプルで試す（登録不要）</button>
+</section>
+{% endif %}
+
 <section class="card">
   <h1>案件を判定する</h1>
   <form id="evaluate-form" method="post" action="/evaluate" enctype="multipart/form-data">
@@ -113,6 +120,72 @@ if (window.JOBFIT_PUBLIC_MODE) {
 
   if (window.__jobfitHistoryEntry) {
     JobFitStorage.pushHistoryEntry(window.__jobfitHistoryEntry);
+  }
+
+  const DEMO_SKILL_SHEET = [
+    '【経歴】',
+    'Webサービス開発会社にてSE/PGとして3年勤務後、2020年よりフリーランスエンジニアとして活動。',
+    '主にBtoB SaaSのバックエンド開発を担当。',
+    '',
+    '【言語・フレームワーク】',
+    '- Python 5年 / Django, FastAPI',
+    '- TypeScript 3年 / Node.js, NestJS',
+    '- SQL 6年 / PostgreSQL, MySQL',
+    '',
+    '【インフラ】',
+    '- AWS(EC2, RDS, Lambda, ECS) 4年',
+    '- Docker / Terraform 2年',
+    '',
+    '【経験領域】',
+    '- APIサーバー設計・実装',
+    '- マイクロサービス移行',
+    '- CI/CDパイプライン構築(GitHub Actions)',
+  ].join('\n');
+
+  const DEMO_WORK_STYLE = {
+    remote_options: ['フルリモート'],
+    weekly_days: ['週3日', '週4日', '週5日(フルタイム)'],
+    rate_min: '4000',
+    rate_max: '7000',
+    leader_ok: true,
+    pm_ok: false,
+    free_text: '貸与PC: どちらでも可能\n実装中心: ◯\n会議多め: △',
+  };
+
+  const DEMO_JOB_TITLE = '【募集】バックエンドエンジニア(業務委託)';
+
+  const DEMO_JOB_POSTING = [
+    '■業務内容',
+    '自社開発のBtoB SaaS基盤におけるAPIサーバーの設計・実装・運用',
+    '',
+    '■必須スキル',
+    '- Python実務経験 3年以上',
+    '- Webアプリケーションフレームワーク(Django/FastAPI等)の実務経験',
+    '- RDBMS(PostgreSQL/MySQL)を用いたテーブル設計経験',
+    '',
+    '■歓迎スキル',
+    '- AWSを用いたインフラ構築経験',
+    '- マイクロサービスアーキテクチャの実務経験',
+    '- チームリーダー経験',
+    '',
+    '■勤務形態',
+    'フルリモート可、週3日〜応相談',
+    '',
+    '■単価',
+    '時給4,000〜6,500円(スキル・経験に応じて応談)',
+  ].join('\n');
+
+  const demoBtn = document.getElementById('demo-btn');
+  if (demoBtn) {
+    demoBtn.addEventListener('click', function () {
+      JobFitStorage.setSkillSheet(DEMO_SKILL_SHEET);
+      JobFitStorage.setWorkStyle(DEMO_WORK_STYLE);
+      document.querySelector('input[name="job_title"]').value = DEMO_JOB_TITLE;
+      document.querySelector('textarea[name="job_posting_text"]').value = DEMO_JOB_POSTING;
+      if (notice) notice.hidden = true;
+      if (btn) btn.disabled = false;
+      document.getElementById('evaluate-form').requestSubmit();
+    });
   }
 }
 </script>
