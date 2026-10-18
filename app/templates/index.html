@@ -3,11 +3,7 @@
 {% block title %}判定 | job-fit-agent{% endblock %}
 {% block content %}
 
-{% if has_skill_sheet is none %}
-  <div class="notice" id="skill-sheet-notice" hidden>
-    まだプロフィールが登録されていません。先に <a href="/skill-sheet">プロフィール登録</a> を行ってください。
-  </div>
-{% elif not has_skill_sheet %}
+{% if not public_mode and not has_skill_sheet %}
   <div class="notice">
     まだスキルシートが登録されていません。先に <a href="/skill-sheet">スキルシート登録</a> を行ってください。
   </div>
@@ -15,9 +11,12 @@
 
 {% if public_mode %}
 <section class="card" id="demo-card">
-  <p class="muted">自分のスキルシートを登録する前に、サンプルデータでどんな結果が出るか試せます。</p>
+  <p class="muted">自分のスキルシートを登録する前に、サンプルデータでどんな結果が出るか試せます。プロフィール登録済みの方は下のフォームからどうぞ。</p>
   <button type="button" id="demo-btn">サンプルで試す（登録不要）</button>
 </section>
+<div class="notice" id="skill-sheet-notice" hidden>
+  まだプロフィールが登録されていません。上のサンプルで試すか、先に <a href="/skill-sheet">プロフィール登録</a> を行ってください。
+</div>
 {% endif %}
 
 <section class="card">
