@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 from anthropic import Anthropic
 
 from app.rate_estimate import HOURS_PER_MONTH
 
+logger = logging.getLogger("uvicorn.error")
+
+# コストを下げたい場合は CLAUDE_MODEL=claude-haiku-5-5 を指定する（判定精度は要確認）
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5-5")
 
 # structured outputs（output_config.format）で使うため、全objectにadditionalProperties: falseが必要
@@ -208,6 +212,69 @@ def compose_work_style_text(work_style: dict) -> str:
     return "\n".join(lines)
 
 
+_CACHE_CONTROL = {"type": "ephemeral"}  # 5分TTL。使われるたびに無料で延長される
+
+
+def build_request_kwargs(
+    skill_sheet_text: str, work_style_text: str, job_posting_text: str
+) -> dict:
+    """messages.createに渡す引数を組み立てる。
+
+    プロンプトキャッシュが効くよう、毎回変わらない部分を前に、変わる部分を後ろに置く。
+    キャッシュはtools → system → messagesの順に前方一致で再利用されるため、
+    - system（判定ルール）: 全判定で共通。1つ目のキャッシュ区切り
+    - スキルシート＋働き方の希望条件: 同じ人が続けて何件も判定する間は同一。2つ目の区切り
+    - 求人票: 毎回変わるのでキャッシュしない
+    という並びにしている。スキルシートを求人票より後ろに置くと、求人票が変わるたびに
+    スキルシート部分のキャッシュも無効になるので順番を崩さないこと。
+    """
+    profile_block = (
+        "## スキルシート\n"
+        f"{skill_sheet_text}\n\n"
+        "## 働き方の希望条件\n"
+        f"{work_style_text or '(未設定)'}"
+    )
+    posting_block = (
+        "## 求人票\n"
+        f"{job_posting_text}\n\n"
+        "上記を比較し、評価結果を出力してください。"
+    )
+    return {
+        "model": DEFAULT_MODEL,
+        "max_tokens": 16000,
+        "thinking": {"type": "adaptive"},
+        "system": [{"type": "text", "text": _SYSTEM_PROMPT, "cache_control": _CACHE_CONTROL}],
+        "output_config": {"format": {"type": "json_schema", "schema": _EVALUATION_SCHEMA}},
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": profile_block, "cache_control": _CACHE_CONTROL},
+                    {"type": "text", "text": posting_block},
+                ],
+            }
+        ],
+    }
+
+
+def _log_usage(response) -> None:
+    """トークン使用量とキャッシュの効き具合をログに出す（コスト確認用）。
+
+    cache_read_input_tokensが2回目以降の判定で0のままなら、キャッシュが効いていない。
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return
+    logger.info(
+        "Claude API usage: model=%s input=%s cache_write=%s cache_read=%s output=%s",
+        DEFAULT_MODEL,
+        getattr(usage, "input_tokens", None),
+        getattr(usage, "cache_creation_input_tokens", None),
+        getattr(usage, "cache_read_input_tokens", None),
+        getattr(usage, "output_tokens", None),
+    )
+
+
 def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str) -> dict:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -219,24 +286,10 @@ def evaluate(skill_sheet_text: str, work_style_text: str, job_posting_text: str)
 
     client = Anthropic(api_key=api_key)
 
-    user_content = (
-        "## スキルシート\n"
-        f"{skill_sheet_text}\n\n"
-        "## 働き方の希望条件\n"
-        f"{work_style_text or '(未設定)'}\n\n"
-        "## 求人票\n"
-        f"{job_posting_text}\n\n"
-        "上記を比較し、評価結果を出力してください。"
-    )
-
     response = client.messages.create(
-        model=DEFAULT_MODEL,
-        max_tokens=16000,
-        thinking={"type": "adaptive"},
-        system=_SYSTEM_PROMPT,
-        output_config={"format": {"type": "json_schema", "schema": _EVALUATION_SCHEMA}},
-        messages=[{"role": "user", "content": user_content}],
+        **build_request_kwargs(skill_sheet_text, work_style_text, job_posting_text)
     )
+    _log_usage(response)
 
     # refusal・max_tokensで止まった場合は出力がスキーマ通りである保証がない
     if response.stop_reason != "end_turn":

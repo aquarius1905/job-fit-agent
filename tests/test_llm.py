@@ -3,6 +3,7 @@ import pytest
 from app.llm import (
     _cap_fit_score_for_unmet_conditions,
     _enforce_experience_thresholds,
+    build_request_kwargs,
     compose_work_style_text,
 )
 
@@ -143,3 +144,30 @@ def test_compose_work_style_text_includes_all_sections():
 
 def test_compose_work_style_text_empty():
     assert compose_work_style_text({}) == ""
+
+
+def test_build_request_kwargs_caches_stable_prefix_only():
+    # プロンプトキャッシュは前方一致。system(判定ルール)とスキルシート側に区切りを置き、
+    # 毎回変わる求人票はキャッシュ区切りより後ろに置かれていなければならない。
+    kwargs = build_request_kwargs("スキルシート本文", "フルリモート希望", "求人票本文")
+
+    system = kwargs["system"]
+    assert len(system) == 1
+    assert system[0]["cache_control"] == {"type": "ephemeral"}
+
+    content = kwargs["messages"][0]["content"]
+    assert len(content) == 2
+    profile, posting = content
+    assert "スキルシート本文" in profile["text"]
+    assert "フルリモート希望" in profile["text"]
+    assert profile["cache_control"] == {"type": "ephemeral"}
+    assert "求人票本文" in posting["text"]
+    assert "cache_control" not in posting
+    assert "求人票本文" not in profile["text"]
+
+
+def test_build_request_kwargs_profile_block_is_identical_across_postings():
+    # 同じスキルシートなら求人票が変わってもキャッシュ対象部分は1文字も変わらないこと
+    a = build_request_kwargs("シート", "条件", "求人A")["messages"][0]["content"][0]
+    b = build_request_kwargs("シート", "条件", "求人B")["messages"][0]["content"][0]
+    assert a == b
